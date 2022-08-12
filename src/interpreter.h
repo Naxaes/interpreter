@@ -1,12 +1,12 @@
 #pragma once
 
-#include "chunk.h"
 #include "value.h"
 #include "object.h"
 #include "table.h"
 
 
-#define VM_STACK_MAX 1024
+#define VM_STACK_MAX  1024
+#define VM_FRAMES_MAX 64
 
 
 typedef enum {
@@ -17,8 +17,16 @@ typedef enum {
 
 
 typedef struct {
-    Chunk* chunk;
-    u8* ip;
+    ObjFunction* function;
+    uint8_t* ip;
+    Value*   slots;
+} CallFrame;
+
+
+typedef struct {
+    CallFrame frames[VM_FRAMES_MAX];
+    int frame_count;
+
     Value  stack[VM_STACK_MAX];
     Value* stack_top;
     Obj*   objects;
@@ -27,10 +35,10 @@ typedef struct {
 
 extern VM vm;
 
-void  vm_init(Chunk* chunk);
+void  vm_init();
 void  vm_free();
 void  vm_push(Value value);
 Value vm_pop(void);
 Value vm_peek(int x);
-InterpretResult vm_interpret(Chunk* chunk);
+InterpretResult vm_interpret(const char* source);
 InterpretResult vm_run(void);

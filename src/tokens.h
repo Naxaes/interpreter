@@ -35,11 +35,16 @@ typedef enum {
     TOKEN_IDENTIFIER,
 
     TOKEN_VAR,
+    TOKEN_FUN,
+
     TOKEN_IF,
     TOKEN_ELSE,
 
     TOKEN_WHILE,
     TOKEN_FOR,
+    TOKEN_RETURN,
+
+    TOKEN_COMMA,
 
     TOKEN_PRINT_STMT,
     TOKEN_END_STMT,

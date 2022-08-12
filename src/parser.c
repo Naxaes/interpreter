@@ -94,7 +94,9 @@ static void parser_string(Parser* self) {
     if (c == '\0' || c == '\n')
         parser_error(self, "Unexpected EOF");
 
-    parser_next(self, count+1, TOKEN_STRING);  // @NOTE: Skip '"'
+    parser_next(self, count, TOKEN_STRING);
+    self->index += 1; // @NOTE: Skip '"'
+    self->col   += 1;
 }
 
 static void parser_comment(Parser* self) {
@@ -160,6 +162,7 @@ void advance(Parser* self) {
         case '<':  if (*parser_peek(self, 1) == '=')  parser_next(self, 2, TOKEN_LESS_EQUAL);    else parser_next(self, 1, TOKEN_LESS);     return;
         case '>':  if (*parser_peek(self, 1) == '=')  parser_next(self, 2, TOKEN_GREATER_EQUAL); else parser_next(self, 1, TOKEN_GREATER);  return;
         case ';':  parser_next(self, 1, TOKEN_END_STMT); return;
+        case ',':  parser_next(self, 1, TOKEN_COMMA);    return;
         case '\0': parser_end(self);  return;
         case ' ':
         case '\n': skip_whitespace(self); goto retry;
@@ -168,6 +171,7 @@ void advance(Parser* self) {
                 case 'f':
                     if (is_keyword(parser_peek(self, 1), "alse"))  { parser_next(self, 5, TOKEN_FALSE);  return; }
                     if (is_keyword(parser_peek(self, 1), "or"))    { parser_next(self, 3, TOKEN_FOR);    return; }
+                    if (is_keyword(parser_peek(self, 1), "un"))    { parser_next(self, 3, TOKEN_FUN);    return; }
                     break;
                 case 'a': if (is_keyword(parser_peek(self, 1), "nd"))    { parser_next(self, 3, TOKEN_AND);        return; } break;
                 case 'o': if (is_keyword(parser_peek(self, 1), "r"))     { parser_next(self, 2, TOKEN_OR);         return; } break;
@@ -177,6 +181,7 @@ void advance(Parser* self) {
                 case 'i': if (is_keyword(parser_peek(self, 1), "f"))     { parser_next(self, 2, TOKEN_IF);         return; } break;
                 case 'e': if (is_keyword(parser_peek(self, 1), "lse"))   { parser_next(self, 4, TOKEN_ELSE);       return; } break;
                 case 'w': if (is_keyword(parser_peek(self, 1), "hile"))  { parser_next(self, 5, TOKEN_WHILE);      return; } break;
+                case 'r': if (is_keyword(parser_peek(self, 1), "eturn")) { parser_next(self, 6, TOKEN_RETURN);     return; } break;
             }
             if (is_alpha(current) || current == '_') {
                 parser_identifier(self);

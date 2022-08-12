@@ -2,6 +2,7 @@
 #include "parser.h"
 #include "chunk.h"
 #include "value.h"
+#include "object.h"
 
 
 typedef struct {
@@ -11,8 +12,10 @@ typedef struct {
 
 
 typedef struct {
-    Parser parser;
-    Chunk  chunk;
+    Parser* parser;
+
+    ObjFunction* function;
+    FunctionType type;
 
     Local locals[256];
     int   local_count;
@@ -23,5 +26,4 @@ typedef struct {
 } Compiler;
 
 
-Compiler compiler_make(Chunk chunk, Parser parser);
-bool compile(Compiler* compiler);
+ObjFunction* compile(const char* source);

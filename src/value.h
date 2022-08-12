@@ -6,6 +6,7 @@ typedef enum {
     OBJ_INVALID,
     OBJ_STRING,
     OBJ_FUNCTION,
+    OBJ_NATIVE,
 } ObjType;
 
 struct Obj {
@@ -58,6 +59,7 @@ Value OBJ_VALUE_(Obj* value);
 
 #define IS_STRING(value)    is_obj_type(value, OBJ_STRING)
 #define IS_FUNCTION(value)  is_obj_type(value, OBJ_FUNCTION)
+#define IS_NATIVE(value)    is_obj_type(value, OBJ_NATIVE)
 
 
 void print_value(Value value);
@@ -65,5 +67,5 @@ void print_type(Value value);
 
 bool value_equals(Value a, Value b);
 
-inline bool is_obj_type(Value value, ObjType type);
+bool is_obj_type(Value value, ObjType type);
 bool value_is_falsy(Value value);

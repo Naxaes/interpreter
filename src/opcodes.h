@@ -1,9 +1,8 @@
 #pragma once
 
 typedef enum {
-    STMT_EXIT,
-    STMT_RETURN,
-    STMT_PRINT,
+    OP_EXIT,
+    OP_PRINT,
 
     OP_POP,
 
@@ -34,7 +33,10 @@ typedef enum {
 
     OP_JUMP,
     OP_JUMP_IF_FALSE,
-    OP_LOOP
+    OP_LOOP,
 
+    OP_CALL,
+    OP_RETURN,
+    OP_NULL,
 
 } OpCode;

@@ -14,8 +14,7 @@ typedef struct {
     Value constants[CHUNK_CONSTANTS_MAX];
     int constant_count;
 
-    const char* source;
-    Location*   lines;
+    Location* lines;
 
     u8* code;
     int count;
@@ -23,7 +22,7 @@ typedef struct {
 } Chunk;
 
 
-Chunk chunk_make(const char* source);
+Chunk chunk_make();
 void  chunk_write(Chunk* chunk, u8 byte, Location location);
 void  chunk_free(Chunk* chunk);
 int   chunk_add_constant(Chunk* chunk, Value constant);

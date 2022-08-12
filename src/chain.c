@@ -9,14 +9,7 @@
 
 
 static InterpretResult interpret(const char* source) {
-    Parser parser = parser_make(source);
-    Chunk  chunk  = chunk_make(source);
-    Compiler compiler = compiler_make(chunk, parser);
-
-    if (compile(&compiler))
-        return vm_interpret(&compiler.chunk);
-    else
-        return INTERPRET_COMPILE_ERROR;
+    return vm_interpret(source);
 }
 
 
@@ -114,12 +107,9 @@ int main(int argc, const char* argv[]) {
         printf("===============================================================\n");
         clock_t begin = clock();
 
-        Parser parser = parser_make(source);
-        Chunk  chunk  = chunk_make(source);
-        Compiler compiler = compiler_make(chunk, parser);
-
-        if (compile(&compiler)) {
-            chunk_disassemble(&compiler.chunk, argv[2]);
+        ObjFunction* script = compile(source);
+        if (script) {
+            chunk_disassemble(&script->chunk, argv[2]);
         } else {
             printf("[COMPILATION ERROR]\n");
         }

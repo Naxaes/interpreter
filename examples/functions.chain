@@ -1,0 +1,17 @@
+fun sum(a, b, c) {
+  print a + b + c;
+}
+
+fun sum_and_return(a, b, c) {
+  return a + b + c;
+}
+
+var start = clock();
+
+print 4;
+print sum(5, 6, 7);
+print sum_and_return(1, 2, 3);
+
+var stop = clock();
+
+print start - stop;
