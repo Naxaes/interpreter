@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -e
+
+
+CC=clang
+
+SRC_DIR="src"
+OUT_DIR="out"
+
+if [[ "$2" = "fast" ]]; then
+    mkdir -p "$OUT_DIR/fast"
+    TARGET="$OUT_DIR/fast/chain"
+else
+    mkdir -p "$OUT_DIR/slow"
+    TARGET="$OUT_DIR/slow/chain"
+fi
+
+MAIN="$SRC_DIR/chain.c"
+
+FLAGS="$MAIN -o $TARGET"
+WARNINGS=""
+NO_WARNINGS="-Wno-declaration-after-statement -Wno-missing-variable-declarations -Wno-strict-prototypes -Wno-missing-prototypes"
+
+FLAGS_SLOW="-DVM_DEBUG_TRACE_EXECUTION -O0 -g -fsanitize=address -fno-omit-frame-pointer -Wno-padded"
+WARNINGS_SLOW="-Wall -Wextra -Wpedantic -Weverything"
+NO_WARNINGS_SLOW="-Wno-unused-parameter -Wno-sign-conversion"
+
+FLAGS_FAST="-O2"
+WARNINGS_FAST="-Wall -Wextra -Wpedantic -Weverything"
+NO_WARNINGS_FAST=""
+
+
+if [[  "$1" = "build" && "$2" = "fast" || "$1" = "run" && "$2" = "fast" ]]; then
+    FLAGS="$FLAGS $WARNINGS $NO_WARNINGS $FLAGS_FAST $WARNINGS_FAST $NO_WARNINGS_FAST"
+    echo "[Status] Building release with compiler flags: $FLAGS"
+else
+    FLAGS="$FLAGS $WARNINGS $NO_WARNINGS $FLAGS_SLOW $WARNINGS_SLOW $NO_WARNINGS_SLOW"
+    echo "[Status] Building debug with compiler flags: $FLAGS"
+fi
+
+$CC $FLAGS 
+
+if [[ "$1" = "run" || "$1" = "" ]]; then
+    echo "[Status] Running: interpreter"
+    # shift  # Rename $0 -> $1, $1 -> $2, ...
+    # command time -h -p $TARGET "$@"
+    $TARGET "$@"
+fi
+
+

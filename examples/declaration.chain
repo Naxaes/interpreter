@@ -1,0 +1,16 @@
+var beverage = "cafe au lait";
+var breakfast = beverage;
+print breakfast;
+breakfast = "new thing";
+print breakfast;
+
+var x = 10;
+var y = 20;
+var z = 30;
+var w = 2*x + y - z/3;
+
+print w;
+
+// This should be an error!
+// x + y = z + 40;
+

@@ -1,0 +1,59 @@
+References:
+    * https://craftinginterpreters.com/contents.html
+
+
+---- Names? ----
+Jolt / Bolt / Zolt
+Ion
+Coal
+Tex / Tez
+Pie
+Axe
+Oz / Ozon
+Ox / Oxide
+Nax
+Emerald
+Tide
+Tor
+Cyan
+
+
+
+---- Commands ----
+build [path]            - Compiles the project using config or specified file as main
+run [path] [-- args]    - Might compile and then runs the executable
+sim [path] [-- args]    - Simulates the program (interpreter)
+repl                    - Opens up an interactive repl
+dot <file|func>         - Generates a dot Graphviz file.
+get [TODO|FIXME|...]    - Gets the annotations and sorts them (https://www.youtube.com/watch?v=assDDVG0PEo)
+refactor <subcommand>   - Refactoring (might be interactive)
+    * rename <thing>    - Renames all instances of the thing.
+    * inline <thing>    - Copies the content into its calling poin
+
+
+
+---- Hashing ----
+Instead of a dictionary lookup, we can truncate a name to an integer.
+Basically:
+    a-z => 0-25,
+    A-Z => 26-51
+    0-9 => 51-61
+    _   => 62
+
+This means that we can encode names in the following way:
+        (2*26+10+1)^(x) <= 2^y
+    <=> 63^x < =2^y
+    <=> y >= log(63^x) / log(2)
+    <=> x <= log(2^y)/ (2*log(3) + log(7))
+
+Given the formula, names can be represented by following types:
+    u8:   log(2^8)  / (2*log(3) + log(7)) = 1
+    u16:  log(2^16) / (2*log(3) + log(7)) = 2
+    u32:  log(2^32) / (2*log(3) + log(7)) = 5
+    u64:  log(2^64) / (2*log(3) + log(7)) = 10
+    u128: log(2^128)/ (2*log(3) + log(7)) = 21
+    u256: log(2^256)/ (2*log(3) + log(7)) = 42
+    u512: log(2^512)/ (2*log(3) + log(7)) = 85
+
+Maybe we can deterministically store every identifier <=85 in a
+sparse set of 8,789146502e+152 possible entries?

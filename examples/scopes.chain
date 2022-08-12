@@ -1,0 +1,21 @@
+
+var a = 10;
+{
+    var b = 20;
+    var c = 30;
+    print a;
+    print a + b;
+    print b + c;
+    {
+        var d = 40;
+        print a;
+        print b;
+        print d;
+        print a + b;
+        print a + d;
+        print b + d;
+    }
+}
+
+// Should be undefined!
+// print b + c;

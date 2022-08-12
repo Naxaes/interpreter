@@ -1,0 +1,11 @@
+print true and !false or
+      !!true and !!!false or
+      10 > 5 or
+      9 < 10000 or
+      10 <= 10 or
+      10 == 10 or
+      10 <= 122;
+
+print !(5 - 4 > 3*2 and 3*2 == 3 + 3);
+print "Hello world!" == "Hello world!";
+print "Hello world!" == "Hello sailor!" or "Hello world!" != "Hello sailor!";
