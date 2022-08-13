@@ -7,7 +7,7 @@
 #include <time.h>
 
 
-void pretty_print_source(const char* source);
+void pretty_print_source(const char* path, const char* source);
 
 static void repl() {
     char line[1024];
@@ -52,7 +52,7 @@ int main(int argc, const char* argv[]) {
         repl();
     } else if (argc == 2) {
         const char* source = load_file(argv[1]);
-        pretty_print_source(source);
+        pretty_print_source(argv[1], source);
         clock_t begin = clock();
 
         vm_init();
@@ -68,7 +68,7 @@ int main(int argc, const char* argv[]) {
         }
 
         const char* source = load_file(argv[2]);
-        pretty_print_source(source);
+        pretty_print_source(argv[2], source);
         clock_t begin = clock();
 
         ObjFunction* script = compile(argv[2], source);
@@ -88,8 +88,8 @@ int main(int argc, const char* argv[]) {
     return 0;
 }
 
-void pretty_print_source(const char* source) {
-    printf("===================== %*s%*s =====================\n", 10 + (int)strlen(source)/2, source, 10 - (int)strlen(source)/2, "");
+void pretty_print_source(const char* path, const char* source) {
+    printf("===================== %*s%*s =====================\n", 10 + (int)strlen(path)/2, path, 10 - (int)strlen(path)/2, "");
     const char* base = source;
     const char* ptr  = source;
     int line = 1;
