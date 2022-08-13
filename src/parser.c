@@ -7,6 +7,7 @@
 static inline bool is_space(char c);
 static inline bool is_digit(char c);
 static inline bool is_alpha(char c);
+static inline bool is_valid(char c);
 static int  skip_space(Parser* self);
 static void skip_whitespace(Parser* self);
 static void parser_next(Parser* self, int count, TokenType type);
@@ -16,114 +17,128 @@ static void parser_digit(Parser* self);
 static void parser_end(Parser* self);
 
 
-Parser parser_make(const char* source) {
+void parser_unknown_token(Parser* self);
+
+Parser parser_make(const char* path, const char* source) {
     Parser parser;
+    parser.path = path;
     parser.source = source;
-    parser.index  = 0;
-    parser.row    = 1;
-    parser.col    = 0;
-    parser.prev   = (Token) { TOKEN_ERROR, 0, 0, 0, 0 };
-    parser.curr   = (Token) { TOKEN_ERROR, 0, 0, 0, 0 };
-    parser.had_error     = false;
+    parser.location = (Location) { .row=1, .col=0, .index=0 };
+    parser.previous = token_make_empty();
+    parser.current  = token_make_empty();
     parser.in_panic_mode = false;
+    memset(parser.errors, 0, sizeof(parser.errors));
+    parser.error_count = 0;
     return parser;
 }
 
 
-void parser_error(Parser* self, const char* message) {
+bool parser_had_error(const Parser* self) {
+    return self->error_count > 0;
+}
+
+void parser_flush_errors(Parser* self) {
+    for (int i = 0; i < self->error_count; ++i) {
+        Error error = self->errors[i];
+        print_error(error);
+    }
+    self->error_count = 0;
+}
+
+
+void parser_store_error(Parser* self, ErrorCode code) {
     if (self->in_panic_mode) return;
+
     self->in_panic_mode = true;
 
-    Token token = self->curr;
-
-    fprintf(stderr, "[line %d] Error", self->row);
-
-    if (token.type == TOKEN_EOF) {
-        fprintf(stderr, " at end");
-    } else if (token.type == TOKEN_ERROR) {
-        // Nothing.
-    } else {
-        fprintf(stderr, " at '%.*s'", token.count, &self->source[token.index]);
-    }
-
-    fprintf(stderr, ": %s\n", message);
-    self->had_error = true;
+    Token token = self->current;
+    self->errors[self->error_count++] = (Error) {
+        .code=code,
+        .location=self->current.location,
+        .arg=(token.type == TOKEN_EOF) ? SLICE("") : parser_token_repr(self, token),
+        .path=self->path,
+        .source=self->source,
+        .function=SLICE(""),
+    };
 }
+
 
 static int skip_space(Parser* self) {
     int count = 0;
-    while (is_space(self->source[self->index+count]))
+    while (is_space(self->source[self->location.index+count]))
         ++count;
     return count;
 }
 
 static void skip_whitespace(Parser* self) {
     int count = 0;
-    char c = self->source[self->index+count];
+    char c = self->source[self->location.index+count];
     while (c == ' ' || c == '\t' || c == '\n') {
         if (c == '\n') {
-            self->row += 1;
-            self->col  = 0;
+            self->location.row += 1;
+            self->location.col  = 0;
         }
-        ++self->col;
-        c = self->source[self->index + (++count)];
+        ++self->location.col;
+        c = self->source[self->location.index + (++count)];
     }
-    self->index += count;
+    self->location.index += count;
 }
 
 const char* parser_peek(Parser* self, int count) {
-    return &self->source[self->index+count];
+    return &self->source[self->location.index+count];
 }
 
 static void parser_next(Parser* self, int count, TokenType type) {
-    self->prev = self->curr;
-    self->curr = (Token) { .type=type, .row=self->row, .col=self->col, .index=self->index, count };
-    self->index += count;
-    self->col   += count;
+    self->previous = self->current;
+    self->current = token_make(type, self->location, count);
+    self->location.index += count;
+    self->location.col   += count;
     skip_whitespace(self);
 }
 
 static void parser_string(Parser* self) {
     int count = 0;
-    self->index += 1;  // @NOTE: Skip '"'
-    self->col   += 1;
-    char c = self->source[self->index+count];
+    self->location.index += 1;  // @NOTE: Skip '"'
+    self->location.col   += 1;
+    char c = self->source[self->location.index+count];
     while (c != '"' && c != '\n' && c != '\0')
-        c = self->source[self->index + (++count)];
+        c = self->source[self->location.index + (++count)];
 
-    if (c == '\0' || c == '\n')
-        parser_error(self, "Unexpected EOF");
+    if (c == '\0' || c == '\n') {
+        parser_store_error(self, PARSER_ERROR_UNEXPECTED_EOF);
+        return;
+    }
 
     parser_next(self, count, TOKEN_STRING);
-    self->index += 1; // @NOTE: Skip '"'
-    self->col   += 1;
+    self->location.index += 1; // @NOTE: Skip '"'
+    self->location.col   += 1;
 }
 
 static void parser_comment(Parser* self) {
     int count = 0;
-    self->index += 2;  // @NOTE: Skip '//'
-    self->col   += 2;
-    char c = self->source[self->index+count];
+    self->location.index += 2;  // @NOTE: Skip '//'
+    self->location.col   += 2;
+    char c = self->source[self->location.index+count];
     while (c != '\n' && c != '\0')
-        c = self->source[self->index + (++count)];
+        c = self->source[self->location.index + (++count)];
 
-    self->index += count;
-    self->col   += count;
+    self->location.index += count;
+    self->location.col   += count;
 
     // @NOTE: Skip '\n' but not '\0'.
     if (c == '\n') {
-        self->index += 1;
-        self->col    = 0;
-        self->row   += 1;
+        self->location.index += 1;
+        self->location.col    = 0;
+        self->location.row   += 1;
     }
 }
 
 static void parser_digit(Parser* self) {
     int count = 1;
-    while (is_digit(self->source[self->index+count])) ++count;
-    if (self->source[self->index+count] == '.') {
+    while (is_digit(self->source[self->location.index+count])) ++count;
+    if (self->source[self->location.index+count] == '.') {
         ++count;
-        while (is_digit(self->source[self->index+count])) ++count;
+        while (is_digit(self->source[self->location.index+count])) ++count;
         parser_next(self, count, TOKEN_F64);
     } else {
         parser_next(self, count, TOKEN_I64);
@@ -132,22 +147,22 @@ static void parser_digit(Parser* self) {
 
 static void parser_identifier(Parser* self) {
     int count = 1;  // @NOTE: Skip already checked value.
-    char c = self->source[self->index+count];
+    char c = self->source[self->location.index+count];
     while (is_alpha(c) || is_digit(c) || c == '_')
-        c = self->source[self->index + (++count)];
+        c = self->source[self->location.index + (++count)];
 
     parser_next(self, count, TOKEN_IDENTIFIER);
 }
 
 static void parser_end(Parser* self) {
-    self->prev = self->curr;
-    self->curr = (Token) { .type=TOKEN_EOF, .row=self->row, .col=self->col, .index=self->index, .count=0 };
+    self->previous = self->current;
+    self->current = token_make(TOKEN_EOF, self->location, 0);
 }
 
 
 void advance(Parser* self) {
     char current;
-    retry: switch (current = self->source[self->index]) {
+    retry: switch (current = self->source[self->location.index]) {
         case '+':  parser_next(self, 1, TOKEN_PLUS);        return;
         case '-':  parser_next(self, 1, TOKEN_MINUS);       return;
         case '*':  parser_next(self, 1, TOKEN_STAR);        return;
@@ -190,12 +205,23 @@ void advance(Parser* self) {
                 parser_digit(self);
                 break;
             }
-            parser_error(self, "Unexpected token");
+            parser_unknown_token(self);
     }
 }
 
+void parser_unknown_token(Parser* self) {
+    int count = 0;
+    char c = self->source[self->location.index + count];
+    while (!is_valid(c)) {
+        c = self->source[self->location.index + (++count)];
+    }
+
+    parser_next(self, count, TOKEN_UNKNOWN);
+    parser_store_error(self, PARSER_ERROR_UNKNOWN_TOKEN);
+}
+
 bool expect(Parser* self, TokenType type) {
-    if (self->curr.type == type) {
+    if (self->current.type == type) {
         advance(self);
         return true;
     } else {
@@ -204,10 +230,34 @@ bool expect(Parser* self, TokenType type) {
 }
 
 
-
+Slice parser_token_repr(Parser* self, Token token) {
+    return (Slice) { .source=&self->source[token.location.index], .count=token.count };
+}
 
 
 
 static inline bool is_space(char c) { return (c == ' ' || c == '\t'); }
 static inline bool is_digit(char c) { return ('0' <= c && c <= '9'); }
 static inline bool is_alpha(char c) { return ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z'); }
+static inline bool is_valid(char c) {
+    if (is_space(c) || is_alpha(c) || is_digit(c) || c == '_' || c == '\n')
+        return true;
+    switch (c) {
+        case '+':
+        case '-':
+        case '*':
+        case '(':
+        case ')':
+        case '{':
+        case '}':
+        case '"':
+        case '/':
+        case '!':
+        case '=':
+        case '<':
+        case '>':
+        case ';':
+        case ',': return true;
+        default:  return false;
+    }
+}

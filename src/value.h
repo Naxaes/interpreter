@@ -37,13 +37,13 @@ typedef struct {
 } Value;
 
 
-Value INVALID_VALUE();
-Value NULL_VALUE();
-Value BOOL_VALUE(bool value);
-Value F64_VALUE(f64 value);
-Value I64_VALUE(i64 value);
-Value OBJ_VALUE_(Obj* value);
-#define OBJ_VALUE(obj) (OBJ_VALUE_((Obj*) (obj)))
+Value MAKE_INVALID();
+Value MAKE_NULL();
+Value MAKE_BOOL(bool value);
+Value MAKE_F64(f64 value);
+Value MAKE_I64(i64 value);
+Value impl_MAKE_OBJ(Obj* value);
+#define MAKE_OBJ(obj) (impl_MAKE_OBJ((Obj*) (obj)))
 
 #define AS_BOOL(value)      ((value).as.val_bool)
 #define AS_F64(value)       ((value).as.val_f64)
@@ -64,6 +64,8 @@ Value OBJ_VALUE_(Obj* value);
 
 void print_value(Value value);
 void print_type(Value value);
+
+const char* type_string(Value value);
 
 bool value_equals(Value a, Value b);
 

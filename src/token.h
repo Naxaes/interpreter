@@ -2,6 +2,7 @@
 
 typedef enum {
     TOKEN_ERROR,
+    TOKEN_UNKNOWN,
 
     TOKEN_LEFT_PAREN,
     TOKEN_RIGHT_PAREN,
@@ -53,10 +54,18 @@ typedef enum {
 
 
 typedef struct {
-    TokenType type;
     int row;
     int col;
     int index;
+} Location;
+
+
+typedef struct {
+    TokenType type;
+    Location location;
     int count;
 } Token;
 
+Location token_location(Token token);
+Token token_make_empty();
+Token token_make(TokenType type, Location location, int count);

@@ -1,7 +1,6 @@
+#include "memory.h"
 #include "chunk.h"
 #include "opcodes.h"
-#include "array.h"
-#include "slice.h"
 
 
 // Internal
@@ -30,8 +29,8 @@ void chunk_write(Chunk* chunk, u8 byte, Location location) {
     if (chunk->capacity < chunk->count + 1) {
         int old_capacity = chunk->capacity;
         chunk->capacity  = GROW_CAPACITY(old_capacity);
-        chunk->code      = GROW_ARRAY(uint8_t, chunk->code, old_capacity, chunk->capacity);
-        chunk->lines     = GROW_ARRAY(Location, chunk->lines, old_capacity, chunk->capacity);
+        chunk->code      = RESIZE_ARRAY(uint8_t, chunk->code, old_capacity, chunk->capacity);
+        chunk->lines     = RESIZE_ARRAY(Location, chunk->lines, old_capacity, chunk->capacity);
     }
 
     chunk->code[chunk->count]  = byte;
@@ -40,7 +39,10 @@ void chunk_write(Chunk* chunk, u8 byte, Location location) {
 }
 
 uint8_t chunk_peek(Chunk* chunk) {
-    return chunk->code[chunk->count-1];
+    if (chunk->count > 0)
+        return chunk->code[chunk->count-1];
+    else
+        return 0;
 }
 
 

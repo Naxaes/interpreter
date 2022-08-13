@@ -3,17 +3,11 @@
 #include "value.h"
 #include "object.h"
 #include "table.h"
+#include "error.h"
 
 
 #define VM_STACK_MAX  1024
 #define VM_FRAMES_MAX 64
-
-
-typedef enum {
-    INTERPRET_OK,
-    INTERPRET_COMPILE_ERROR,
-    INTERPRET_RUNTIME_ERROR
-} InterpretResult;
 
 
 typedef struct {
@@ -35,10 +29,9 @@ typedef struct {
 
 extern VM vm;
 
-void  vm_init();
+ErrorCode vm_init();
 void  vm_free();
 void  vm_push(Value value);
-Value vm_pop(void);
+Value vm_pop();
 Value vm_peek(int x);
-InterpretResult vm_interpret(const char* source);
-InterpretResult vm_run(void);
+void  vm_interpret(const char* path, const char* source);

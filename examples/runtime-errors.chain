@@ -1,0 +1,18 @@
+
+
+fun temp(y) {
+
+}
+
+fun hello(y) {
+    var x = 10 + y;
+    temp();
+    print x();
+}
+
+fun main(a, b, c) {
+    hello(a + b);
+}
+
+main(10, 11, 12, 11);
+

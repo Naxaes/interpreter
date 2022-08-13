@@ -1,13 +1,8 @@
 #pragma once
 #include "value.h"
+#include "token.h"
 
 #define CHUNK_CONSTANTS_MAX 1024
-
-
-typedef struct {
-    int row;
-    int index;
-} Location;
 
 
 typedef struct {

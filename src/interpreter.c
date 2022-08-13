@@ -10,52 +10,70 @@
 
 #define STRING_TO_SLICE(x) ((Slice) { .source=x->data, .count=x->size })
 
+Error vm_run(const char* path, const char* source);
+
 
 static Value clock_native(int arg_count, Value* args) {
     if (arg_count != 0)
-        return NULL_VALUE();
-    return F64_VALUE((double) clock() / (double) CLOCKS_PER_SEC);
+        return MAKE_INVALID();
+    clock_t time = clock();
+    return MAKE_F64((double) time / (double) CLOCKS_PER_SEC);
 }
 
-static void define_native(const char* name, NativeFn function) {
+static ErrorCode define_native(const char* name, NativeFn function) {
     ObjString* string = string_make(name, (int) strlen(name));
-    vm_push(OBJ_VALUE(string));
-    vm_push(OBJ_VALUE(native_make(function)));
+    vm_push(MAKE_OBJ(string));
+    vm_push(MAKE_OBJ(native_make(function)));
     if (!table_add(&vm.globals, STRING_TO_SLICE(AS_STRING(AS_OBJ(vm.stack[0]))), vm.stack[1])) {
-        printf("ERROR!");
-        exit(1);
+        return RUNTIME_ERROR_REDEFINITION_OF_NATIVE_FUNCTION;
     }
     vm_pop();
     vm_pop();
+    return NO_ERROR;
 }
 
 
 
 static void type_error_unary(const char* message, Value a);
 static void type_error_binary(const char* message, Value a, Value b);
-static bool call(ObjFunction* function, int arg_count);
+static ErrorCode call(ObjFunction* function, int arg_count);
 
-bool call_value(Value peek, int count);
+ErrorCode call_value(Value peek, int count);
 
-VM vm = {0 };
+VM vm = { 0 };
 
 
-static void runtime_error(const char* message) {
-    for (int i = vm.frame_count - 1; i >= 0; --i) {
+#define VM_ERROR_MAKE(code_, arg_) (Error) { .path=path, .source=source, .function=(frame->function->name) ? (Slice) { .count=frame->function->name->size, .source=frame->function->name->data } : SLICE("script"), .code=code_, .location=frame->function->chunk.lines[(int) (frame->ip - frame->function->chunk.code - 1)], .arg=arg_ }
+
+
+static void runtime_error(Error error) {
+    if (vm.frame_count > 1) {
+        fprintf(stderr, "Stacktrace:\n");
+    }
+    for (int i = 0; i < vm.frame_count-1; ++i) {
         CallFrame* frame = &vm.frames[i];
         ObjFunction* function = frame->function;
-        size_t instruction = frame->ip - function->chunk.code - 1;
-        fprintf(stderr, "[line %d] in ", function->chunk.lines[instruction].row);
+        Location loc = function->chunk.lines[(int) (frame->ip - function->chunk.code - 1)];
         if (function->name == NULL) {
-            fprintf(stderr, "script\n");
+            fprintf(stderr, "    at %s:%d:%d - <script>\n", error.path, loc.row, loc.col);
         } else {
-            fprintf(stderr, "%.*s()\n", function->name->size, function->name->data);
+            fprintf(stderr, "    at %s:%d:%d - fun %.*s(", error.path, loc.row, loc.col, function->name->size, function->name->data);
+            for (int j = 0; j < function->arity; ++j)
+                if (j != function->arity-1) fprintf(stderr, "_, ");
+                else fprintf(stderr, "_");
+            fprintf(stderr, ")\n");
         }
+
+        Slice line = current_line(error.source, loc.index);
+        fprintf(stderr, "       %-4d| %.*s\n", loc.row, line.count, line.source);
     }
+
+    print_error(error);
+
 }
 
 
-void vm_init() {
+ErrorCode vm_init() {
     memset(vm.stack,  0, VM_STACK_MAX  * sizeof(Value));
     memset(vm.frames, 0, VM_FRAMES_MAX * sizeof(CallFrame));
 
@@ -64,7 +82,7 @@ void vm_init() {
     vm.globals   = table_make();
     vm.frame_count = 0;
 
-    define_native("clock", clock_native);
+    return define_native("clock", clock_native);
 }
 
 void vm_free() {
@@ -82,10 +100,10 @@ void vm_push(Value value) {
     vm.stack_top++;
 }
 
-Value vm_pop(void) {
+Value vm_pop() {
     vm.stack_top--;
     Value value = *vm.stack_top;
-    *vm.stack_top = INVALID_VALUE();
+    *vm.stack_top = MAKE_INVALID();
     return value;
 }
 
@@ -93,19 +111,22 @@ Value vm_peek(int x) {
     return *(vm.stack_top-1-x);
 }
 
-InterpretResult vm_interpret(const char* source) {
-    ObjFunction* function = compile(source);
+void vm_interpret(const char* path, const char* source) {
+    ObjFunction* function = compile(path, source);
 
     if (function == NULL)
-        return INTERPRET_COMPILE_ERROR;
+        return;
 
-    vm_push(OBJ_VALUE(function));
+    vm_push(MAKE_OBJ(function));
     call(function, 0);
 
-    return vm_run();
+    Error result = vm_run(path, source);
+    if (result.code != NO_ERROR) {
+        runtime_error(result);
+    }
 }
 
-InterpretResult vm_run() {
+Error vm_run(const char* path, const char* source) {
     CallFrame* frame = &vm.frames[vm.frame_count - 1];
 
 #define READ_BYTE()     (*frame->ip++)
@@ -117,21 +138,21 @@ InterpretResult vm_run() {
     do { \
       Value b = vm_pop(); \
       Value a = vm_pop(); \
-      vm_push(type ## _VALUE(AS_ ## type(a) op AS_ ## type(b))); \
+      vm_push(MAKE_##type(AS_##type(a) op AS_##type(b))); \
     } while (false)
 
 #define BINARY_RELATION(op, type) \
     do { \
       Value b = vm_pop(); \
       Value a = vm_pop(); \
-      vm_push(BOOL_VALUE(AS_ ## type(a) op AS_ ## type(b))); \
+      vm_push(MAKE_BOOL(AS_ ## type(a) op AS_ ## type(b))); \
     } while (false)
 
 #define BINARY_EQUALS() \
     do { \
       Value b = vm_pop(); \
       Value a = vm_pop(); \
-      vm_push(BOOL_VALUE(value_equals(a, b))); \
+      vm_push(MAKE_BOOL(value_equals(a, b))); \
     } while (false)
 
 
@@ -154,16 +175,16 @@ InterpretResult vm_run() {
         switch (instruction = READ_BYTE()) {
             case OP_POP:      vm_pop();                    break;
             case OP_CONSTANT: vm_push(READ_CONSTANT());    break;
-            case OP_TRUE:     vm_push(BOOL_VALUE(true));   break;
-            case OP_FALSE:    vm_push(BOOL_VALUE(false));  break;
+            case OP_TRUE:     vm_push(MAKE_BOOL(true));   break;
+            case OP_FALSE:    vm_push(MAKE_BOOL(false));  break;
             case OP_NEGATE:   {
-                if      (IS_F64(vm_peek(0))) { vm_push(F64_VALUE(-AS_F64(vm_pop()))); }
-                else if (IS_I64(vm_peek(0))) { vm_push(I64_VALUE(-AS_I64(vm_pop()))); }
+                if      (IS_F64(vm_peek(0))) { vm_push(MAKE_F64(-AS_F64(vm_pop()))); }
+                else if (IS_I64(vm_peek(0))) { vm_push(MAKE_I64(-AS_I64(vm_pop()))); }
                 else type_error_unary("NEGATE", vm_peek(0));
                 break;
             }
             case OP_NOT: {
-                if (IS_BOOL(vm_peek(0))) vm_push(BOOL_VALUE(!AS_BOOL(vm_pop())));
+                if (IS_BOOL(vm_peek(0))) vm_push(MAKE_BOOL(!AS_BOOL(vm_pop())));
                 else type_error_unary("NOT", vm_peek(0));
                 break;
             }
@@ -179,7 +200,7 @@ InterpretResult vm_run() {
                 break;
             }
             case OP_EQUAL: {
-                if       (IS_SAME(F64)) { runtime_error("Unsafe equality on floats."); }
+                if (IS_SAME(F64)) { return VM_ERROR_MAKE(RUNTIME_ERROR_UNSAFE_FLOAT_COMPARISON, SLICE("")); }
                 else   { BINARY_EQUALS(); }
                 break;
             }
@@ -222,7 +243,7 @@ InterpretResult vm_run() {
             case OP_EXIT:
                 print_value(vm_pop());
                 printf("\n");
-                return INTERPRET_OK;
+                return VM_ERROR_MAKE(NO_ERROR, SLICE(""));
             case OP_PRINT: {
                 print_value(vm_pop());
                 printf("\n");
@@ -238,8 +259,7 @@ InterpretResult vm_run() {
                 ObjString* name = READ_STRING();
                 Value value;
                 if (!table_get(&vm.globals, (Slice) { name->data, name->size }, &value)) {
-                    fprintf(stderr, "Undefined variable '%.*s'\n.", name->size, name->data);
-                    return INTERPRET_RUNTIME_ERROR;
+                    return VM_ERROR_MAKE(RUNTIME_ERROR_UNDEFINED_VARIABLE, string_to_slice(name));
                 }
                 vm_push(value);
                 break;
@@ -249,8 +269,7 @@ InterpretResult vm_run() {
                 Slice key = (Slice) { name->data, name->size };
                 if (!table_set(&vm.globals, key, vm_peek(0))) {
                     table_delete(&vm.globals, key);
-                    fprintf(stderr, "Undefined variable '%.*s'\n.", name->size, name->data);
-                    return INTERPRET_RUNTIME_ERROR;
+                    return VM_ERROR_MAKE(RUNTIME_ERROR_UNDEFINED_VARIABLE, string_to_slice(name));
                 }
                 break;
             }
@@ -282,8 +301,46 @@ InterpretResult vm_run() {
             }
             case OP_CALL: {
                 int arg_count = READ_BYTE();
-                if (!call_value(vm_peek(arg_count), arg_count)) {
-                    return INTERPRET_RUNTIME_ERROR;
+                ErrorCode result = call_value(vm_peek(arg_count), arg_count);
+                if (result != NO_ERROR) {
+                    static char buffer[256] = { 0 };
+                    switch (result) {
+                        case RUNTIME_ERROR_TOO_FEW_ARGUMENTS:
+                        case RUNTIME_ERROR_TOO_MANY_ARGUMENTS: {
+                            // @NOTE: Safe as these errors can only happen for valid functions.
+                            ObjFunction* function = AS_FUNCTION(AS_OBJ(vm_peek(arg_count)));
+                            Slice fn = string_to_slice(function->name);
+                            int c = snprintf(buffer, 256, "Function %.*s(", fn.count, fn.source);
+                            ASSERT(0 < c && c <= 256);
+                            for (int i = 0; i < function->arity; ++i) {
+                                if (i < function->arity - 1) {
+                                    c += snprintf(buffer+c, 256-c, "_, ");
+                                    ASSERT(0 < c && c <= 256);
+                                } else {
+                                    c += snprintf(buffer+c, 256-c, "_");
+                                    ASSERT(0 < c && c <= 256);
+                                }
+                            }
+                            c += snprintf(buffer+c, 256-c, ") expected %d arguments, but got %d", function->arity, arg_count);
+                            Slice repr = (Slice) { .source=buffer, .count=c };
+                            return VM_ERROR_MAKE(result, repr);
+                        }
+                        case RUNTIME_ERROR_INVALID_CALL: {
+                            // @NOTE: Safe as these errors can only happen for valid functions.
+                            Value value = vm_peek(arg_count);
+                            const char* type = type_string(value);
+                            int c = snprintf(buffer, 256, "Value is not a callable object, it's a '%s'", type);
+                            ASSERT(0 < c && c <= 256);
+                            Slice repr = (Slice) { .source=buffer, .count=c };
+                            return VM_ERROR_MAKE(result, repr);
+                        }
+                        case RUNTIME_ERROR_STACK_OVERFLOW: {
+                            return VM_ERROR_MAKE(result, SLICE(""));
+                        }
+                        default:
+                            PANIC("Unhandled error %d", result);
+                    }
+
                 }
                 frame = &vm.frames[vm.frame_count - 1];
                 break;
@@ -293,7 +350,7 @@ InterpretResult vm_run() {
                 vm.frame_count--;
                 if (vm.frame_count == 0) {
                     vm_pop();
-                    return INTERPRET_OK;
+                    return VM_ERROR_MAKE(NO_ERROR, SLICE(""));
                 }
 
                 vm.stack_top = frame->slots;
@@ -303,12 +360,15 @@ InterpretResult vm_run() {
 
             }
             case OP_NULL: {
-                vm_push(NULL_VALUE());
+                vm_push(MAKE_NULL());
                 break;
             }
             default: {
-                printf("[VM]: Unknown opcode %d\n", instruction);
-                break;
+                static char buffer[4] = { 0 };
+                int c = snprintf(buffer, 4, "%d", instruction);
+                ASSERT(0 < c && c <= 4);
+                Slice repr = (Slice) { .source=buffer, .count=c };
+                return VM_ERROR_MAKE(RUNTIME_ERROR_UNKNOWN_OP_CODE, repr);
             }
         }
     }
@@ -322,33 +382,31 @@ InterpretResult vm_run() {
 }
 
 
-static bool call(ObjFunction* function, int arg_count) {
-    if (arg_count != function->arity) {
-        error(INTERPRETER, "Expected %d arguments but got %d.", function->arity, arg_count);
-    }
-    if (vm.frame_count == VM_FRAMES_MAX) {
-        runtime_error("Stack overflow");
-    }
+static ErrorCode call(ObjFunction* function, int arg_count) {
+    if (arg_count != function->arity)
+        return (arg_count > function->arity) ? RUNTIME_ERROR_TOO_MANY_ARGUMENTS: RUNTIME_ERROR_TOO_FEW_ARGUMENTS;
+
+    if (vm.frame_count == VM_FRAMES_MAX)
+        return RUNTIME_ERROR_STACK_OVERFLOW;
 
     CallFrame* frame = &vm.frames[vm.frame_count++];
     frame->function = function;
     frame->ip = function->chunk.code;
     frame->slots = vm.stack_top - arg_count - 1;
-    return true;
+    return NO_ERROR;
 }
 
-bool call_value(Value callee, int arg_count) {
+ErrorCode call_value(Value callee, int arg_count) {
     if (IS_FUNCTION(callee)) {
         return call(AS_FUNCTION(AS_OBJ(callee)), arg_count);
     } else if (IS_NATIVE(callee)) {
-        NativeFn native = AS_NATIVE(AS_OBJ(callee));
+        NativeFn native = AS_NATIVE(AS_OBJ(callee))->function;
         Value result = native(arg_count, vm.stack_top - arg_count);
         vm.stack_top -= arg_count + 1;
         vm_push(result);
-        return true;
+        return NO_ERROR;
     } else {
-        runtime_error("Can only call functions and classes.");
-        return false;
+        return RUNTIME_ERROR_INVALID_CALL;
     }
 }
 

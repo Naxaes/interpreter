@@ -3,7 +3,11 @@ fun sum(a, b, c) {
 }
 
 fun sum_and_return(a, b, c) {
-  return a + b + c;
+
+  fun test(x) {
+    return 1 + x - 1;
+  }
+  return a + b + test(c);
 }
 
 var start = clock();

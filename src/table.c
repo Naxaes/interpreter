@@ -1,5 +1,5 @@
 #include "table.h"
-#include "array.h"
+#include "memory.h"
 
 // Interesting hash functions:
 //      * http://www.cse.yorku.ca/~oz/hash.html
@@ -70,8 +70,6 @@ Slice table_delete(Table* table, Slice key) {
     // Place a tombstone in the entry.
     *entry = entry_make_tombstone();
 
-    // @TODO: Verify this is correct!
-    //  We decrease count when deleting.
     table->count -= 1;
 
     return the_key;
@@ -142,17 +140,10 @@ bool table_add(Table* table, Slice key, Value value) {
     }
 
     Entry* entry = table_find(table, key);
-
     bool is_new_key = entry->key.source == NULL;
-//    // If it's a tombstone, it's already accounted for.
-//    if (is_new_key && IS_NULL(entry->value))
-//        table->count++;
 
-    // @TODO: Verify this is correct!
-    //  We decrease count when deleting.
     if (is_new_key)
         table->count++;
-
 
     entry->key   = key;
     entry->value = value;
@@ -176,5 +167,5 @@ static inline bool entry_is_tombstone(Entry entry)  { return  slice_is_empty(ent
 static inline bool entry_is_occupied(Entry entry)   { return !slice_is_empty(entry.key); }
 static inline bool entry_is_available(Entry entry)  { return !entry_is_occupied(entry); }
 
-static inline Entry entry_make_free()      { return (Entry) { .key={ 0, 0 }, .value=INVALID_VALUE() }; }
-static inline Entry entry_make_tombstone() { return (Entry) { .key={ 0, 0 }, .value=NULL_VALUE()    }; }
+static inline Entry entry_make_free()      { return (Entry) { .key={ 0, 0 }, .value=MAKE_INVALID() }; }
+static inline Entry entry_make_tombstone() { return (Entry) { .key={ 0, 0 }, .value=MAKE_NULL()    }; }

@@ -1,6 +1,7 @@
 #pragma once
 
 typedef enum {
+    OP_INVALID,
     OP_EXIT,
     OP_PRINT,
 

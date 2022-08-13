@@ -1,5 +1,5 @@
 #include "slice.h"
-#include "debug.h"
+#include "error.h"
 
 
 Slice slice_make_empty() {
@@ -17,8 +17,7 @@ bool slice_equals(Slice a, Slice b) {
 }
 
 bool slice_is_empty(Slice self) {
-    ASSERT((self.source == 0 && self.count == 0) || (self.source != 0 && self.count != 0));
-    return self.source == 0;
+    return self.count == 0;
 }
 
 
@@ -27,16 +26,20 @@ Slice previous_line(const char* source, int index) {
     if (start < source)
         return slice_make_empty();
 
-    while (*start != '\n' && start != source)
+    while (start != source && *start != '\n')
         --start;
-    if (*start == '\n') {
+
+    if (start == source)
+        return slice_make_empty();
+
+    if (start != source && *start == '\n') {
         --start;
-        while (*start != '\n' && start != source)
+        while (start != source && *start != '\n')
             --start;
     }
 
-    const char* stop = start+1;
-    while (*stop != '\n' && *stop != '\0')
+    const char* stop = start;
+    while (*stop != '\0' && *stop != '\n')
         ++stop;
 
     return (Slice) { .source=start, .count=(int)(stop-start) };
@@ -44,7 +47,7 @@ Slice previous_line(const char* source, int index) {
 
 
 Slice current_line(const char* source, int index) {
-    const char* start = &source[index-1];
+    const char* start = &source[index];
     if (start < source)
         return slice_make_empty();
 
@@ -52,7 +55,7 @@ Slice current_line(const char* source, int index) {
 
     while (start != source && *(start-1) != '\n')
         --start;
-    while (*stop != '\n' && *stop != '\0')
+    while (*stop != '\0' && *stop != '\n')
         ++stop;
 
     return (Slice) { .source=start, .count=(int)(stop-start) };
@@ -61,13 +64,16 @@ Slice current_line(const char* source, int index) {
 Slice next_line(const char* source, int index) {
     const char* start = &source[index];
 
-    while (*start != '\n' && *start != '\0')
+    while (*start != '\0' && *start != '\n')
         ++start;
     if (*start == '\n') start++;
 
-    const char* stop = start+1;
-    while (*stop != '\0' && *stop != '\n')
-        ++stop;
+    const char* stop = start;
+    if (*start != '\0' && *start != '\n') {
+        stop = start+1;
+        while (*stop != '\0' && *stop != '\n')
+            ++stop;
+    }
 
     return (Slice) { .source=start, .count=(int)(stop-start) };
 }

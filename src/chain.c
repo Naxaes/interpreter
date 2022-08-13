@@ -7,6 +7,8 @@
 #include <time.h>
 
 
+void pretty_print_source(const char* source);
+
 static void repl() {
     char line[1024];
     vm_init();
@@ -18,7 +20,7 @@ static void repl() {
             break;
         }
 
-        vm_interpret(line);
+        vm_interpret("", line);
     }
 }
 
@@ -50,28 +52,11 @@ int main(int argc, const char* argv[]) {
         repl();
     } else if (argc == 2) {
         const char* source = load_file(argv[1]);
-        printf("===================== %*s%*s =====================\n", 10 + (int)strlen(argv[1])/2, argv[1], 10 - (int)strlen(argv[1])/2, "");
-        const char* base = source;
-        const char* ptr  = source;
-        int line = 1;
-        while (true) {
-            if (*ptr == '\n') {
-                ptr++;
-                printf("%3d |  %.*s", line++, (int) (ptr - base), base);
-                base = ptr;
-            } else if (*ptr == '\0') {
-                if (ptr != base)
-                    printf("%3d |  %.*s\n", line++, (int) (ptr - base), base);
-                break;
-            } else {
-                ++ptr;
-            }
-        }
-        printf("===============================================================\n");
+        pretty_print_source(source);
         clock_t begin = clock();
 
         vm_init();
-        vm_interpret(source);
+        vm_interpret(argv[1], source);
 
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;
@@ -83,27 +68,10 @@ int main(int argc, const char* argv[]) {
         }
 
         const char* source = load_file(argv[2]);
-        printf("===================== %*s%*s =====================\n", 10 + (int)strlen(argv[2])/2, argv[2], 10 - (int)strlen(argv[2])/2, "");
-        const char* base = source;
-        const char* ptr  = source;
-        int line = 1;
-        while (true) {
-            if (*ptr == '\n') {
-                ptr++;
-                printf("%3d |  %.*s", line++, (int) (ptr - base), base);
-                base = ptr;
-            } else if (*ptr == '\0') {
-                if (ptr != base)
-                    printf("%3d |  %.*s\n", line++, (int) (ptr - base), base);
-                break;
-            } else {
-                ++ptr;
-            }
-        }
-        printf("===============================================================\n");
+        pretty_print_source(source);
         clock_t begin = clock();
 
-        ObjFunction* script = compile(source);
+        ObjFunction* script = compile(argv[2], source);
         if (script) {
             chunk_disassemble(&script->chunk, argv[2]);
         } else {
@@ -118,6 +86,28 @@ int main(int argc, const char* argv[]) {
     vm_free();
 
     return 0;
+}
+
+void pretty_print_source(const char* source) {
+    printf("===================== %*s%*s =====================\n", 10 + (int)strlen(source)/2, source, 10 - (int)strlen(source)/2, "");
+    const char* base = source;
+    const char* ptr  = source;
+    int line = 1;
+    while (true) {
+        if (*ptr == '\n') {
+            ptr++;
+            printf("%3d |  %.*s", line++, (int) (ptr - base), base);
+            base = ptr;
+        } else if (*ptr == '\0') {
+            if (ptr != base)
+                printf("%3d |  %.*s\n", line++, (int) (ptr - base), base);
+            break;
+        } else {
+            ++ptr;
+        }
+    }
+    printf("===============================================================\n");
+    fflush(stdout);
 }
 
 

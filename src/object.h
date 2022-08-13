@@ -3,6 +3,7 @@
 #include "preamble.h"
 #include "value.h"
 #include "chunk.h"
+#include "slice.h"
 
 
 typedef enum {
@@ -35,10 +36,12 @@ typedef struct {
 #define AS_STRING(object)   ((ObjString*)(object))
 #define AS_CSTRING(object)  (AS_STRING(object)->data)
 #define AS_FUNCTION(object) ((ObjFunction*)(object))
-#define AS_NATIVE(object)   (((ObjNative*)(object))->function)
+#define AS_NATIVE(object)   (((ObjNative*)(object)))
 
 void print_object(Obj* obj);
 void print_object_type(Obj* obj);
+
+const char* object_type_string(Obj* obj);
 
 void print_string(ObjString* string);
 void print_function(ObjFunction* function);
@@ -46,6 +49,8 @@ void print_native(ObjNative* function);
 
 void object_free(Obj* obj);
 bool objects_equals(Obj* a, Obj* b);
+
+Slice string_to_slice(ObjString* string);
 
 ObjString* string_make(const char* chars, int size);
 ObjFunction* function_make();

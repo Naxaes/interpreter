@@ -44,6 +44,15 @@ void print_object_type(Obj* obj) {
     }
 }
 
+const char* object_type_string(Obj* obj) {
+    switch (obj->type) {
+        case OBJ_STRING:   return "String";
+        case OBJ_FUNCTION: return "Function";
+        case OBJ_NATIVE:   return "Native";
+        case OBJ_INVALID:  error(INTERPRETER, "<INVALID>");
+    }
+}
+
 void object_free(Obj* obj) {
     switch (obj->type) {
         case OBJ_STRING: {
@@ -92,6 +101,10 @@ ObjString* string_make(const char* chars, int size) {
     memcpy(string->data, chars, size);
     string->data[size] = '\0';
     return string;
+}
+
+Slice string_to_slice(ObjString* string) {
+    return (Slice) { .source=string->data, .count=string->size };
 }
 
 
