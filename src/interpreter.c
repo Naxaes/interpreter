@@ -95,10 +95,9 @@ Value vm_peek(int x) {
 
 InterpretResult vm_interpret(const char* source) {
     ObjFunction* function = compile(source);
+
     if (function == NULL)
         return INTERPRET_COMPILE_ERROR;
-
-    vm_init();
 
     vm_push(OBJ_VALUE(function));
     call(function, 0);
@@ -221,6 +220,8 @@ InterpretResult vm_run() {
                 break;
             }
             case OP_EXIT:
+                print_value(vm_pop());
+                printf("\n");
                 return INTERPRET_OK;
             case OP_PRINT: {
                 print_value(vm_pop());

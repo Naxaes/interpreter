@@ -417,6 +417,7 @@ static void return_statement(Compiler* self) {
     if (self->type == TYPE_SCRIPT) {
         parser_error(self->parser, "Can't return from top-level code.");
     }
+
     if (match(self, TOKEN_END_STMT)) {
         emit_byte(self, OP_NULL);
         emit_byte(self, OP_RETURN);
@@ -454,7 +455,11 @@ static void function(Compiler* self, FunctionType type) {
     consume(&compiler, TOKEN_LEFT_BRACE, "Expect '{' before function body.");
     block(&compiler);
 
-    emit_byte(&compiler, OP_NULL);
+    if (chunk_peek(&compiler.function->chunk) != OP_RETURN) {
+        emit_byte(&compiler, OP_NULL);
+        emit_byte(&compiler, OP_RETURN);
+    }
+
 
     ObjFunction* function = compiler_end(&compiler);
     emit_bytes(self, OP_CONSTANT, make_constant(self, OBJ_VALUE(function)));
@@ -650,12 +655,11 @@ static void synchronize(Compiler* self) {
 
 
 static ObjFunction* compiler_end(Compiler* self) {
-    emit_byte(self, OP_RETURN);
     if (!self->parser->had_error) {
         chunk_disassemble(
-                &self->function->chunk,
-                (self->function->name != NULL) ?
-                self->function->name->data: "<script>"
+            &self->function->chunk,
+            (self->function->name != NULL) ?
+            self->function->name->data: "<script>"
         );
         return self->function;
     } else {
@@ -665,7 +669,7 @@ static ObjFunction* compiler_end(Compiler* self) {
 
 
 ObjFunction* compile(const char* source) {
-    Parser parser = parser_make(source);
+    Parser   parser   = parser_make(source);
     Compiler compiler = compiler_make(&parser, TYPE_SCRIPT);
 
     advance(compiler.parser);
@@ -673,6 +677,7 @@ ObjFunction* compile(const char* source) {
         declaration(&compiler);
     }
 
+    emit_byte(&compiler, OP_EXIT);
     return compiler_end(&compiler);
 }
 

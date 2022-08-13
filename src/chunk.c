@@ -9,8 +9,7 @@ static int instruction_constant(const char* name, Chunk* chunk, int offset);
 static int instruction_simple(const char* name, int offset);
 int instruction_byte(const char* name, Chunk* chunk, int offset);
 int instruction_jump(const char* name, int sign, Chunk* chunk, int offset);
-static void chunk_print_line(Chunk* chunk, int offset);
-
+static int instruction_identifier(const char* name, Chunk* chunk, int offset);
 
 
 Chunk chunk_make() {
@@ -39,6 +38,11 @@ void chunk_write(Chunk* chunk, u8 byte, Location location) {
     chunk->lines[chunk->count] = location;
     chunk->count++;
 }
+
+uint8_t chunk_peek(Chunk* chunk) {
+    return chunk->code[chunk->count-1];
+}
+
 
 int chunk_add_constant(Chunk* chunk, Value constant) {
     chunk->constants[chunk->constant_count] = constant;
@@ -93,9 +97,9 @@ int chunk_instruction_disassemble(Chunk* chunk, int offset) {
         case OP_NULL:          return instruction_simple("OP_NULL",     offset);
         case OP_RETURN:        return instruction_simple("OP_RETURN",   offset);
         case OP_CONSTANT:      return instruction_constant("OP_CONSTANT",      chunk, offset);
-        case OP_DEFINE_GLOBAL: return instruction_constant("OP_DEFINE_GLOBAL", chunk, offset);
-        case OP_GET_GLOBAL:    return instruction_constant("OP_GET_GLOBAL",    chunk, offset);
-        case OP_SET_GLOBAL:    return instruction_constant("OP_SET_GLOBAL",    chunk, offset);
+        case OP_DEFINE_GLOBAL: return instruction_identifier("OP_DEFINE_GLOBAL", chunk, offset);
+        case OP_GET_GLOBAL:    return instruction_identifier("OP_GET_GLOBAL",    chunk, offset);
+        case OP_SET_GLOBAL:    return instruction_identifier("OP_SET_GLOBAL",    chunk, offset);
         case OP_GET_LOCAL:     return instruction_byte("OP_GET_LOCAL", chunk, offset);
         case OP_SET_LOCAL:     return instruction_byte("OP_SET_LOCAL", chunk, offset);
         case OP_CALL:          return instruction_byte("OP_CALL",      chunk, offset);
@@ -133,6 +137,14 @@ static int instruction_constant(const char* name, Chunk* chunk, int offset) {
     printf("' ");
     print_type(chunk->constants[constant]);
     printf("\n");
+    return offset + 2;
+}
+
+static int instruction_identifier(const char* name, Chunk* chunk, int offset) {
+    uint8_t constant = chunk->code[offset + 1];
+    printf("%-20s %-4d '", name, constant);
+    print_value(chunk->constants[constant]);
+    printf("' Identifier\n");
     return offset + 2;
 }
 

@@ -7,14 +7,9 @@
 #include <time.h>
 
 
-
-static InterpretResult interpret(const char* source) {
-    return vm_interpret(source);
-}
-
-
 static void repl() {
     char line[1024];
+    vm_init();
     while (true) {
         printf("> ");
 
@@ -23,7 +18,7 @@ static void repl() {
             break;
         }
 
-        interpret(line);
+        vm_interpret(line);
     }
 }
 
@@ -75,7 +70,8 @@ int main(int argc, const char* argv[]) {
         printf("===============================================================\n");
         clock_t begin = clock();
 
-        interpret(source);
+        vm_init();
+        vm_interpret(source);
 
         clock_t end = clock();
         double time_spent = (double)(end - begin) / CLOCKS_PER_SEC;

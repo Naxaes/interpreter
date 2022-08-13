@@ -24,6 +24,7 @@ typedef struct {
 
 Chunk chunk_make();
 void  chunk_write(Chunk* chunk, u8 byte, Location location);
+uint8_t chunk_peek(Chunk* chunk);
 void  chunk_free(Chunk* chunk);
 int   chunk_add_constant(Chunk* chunk, Value constant);
 void  chunk_disassemble(Chunk* chunk, const char* name);
