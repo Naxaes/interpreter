@@ -1,5 +1,4 @@
-
-fun x() { var a = a; }
+fun x() { var thing = thing; }
 
 var x = y;
 
@@ -7,15 +6,15 @@ var x = y;
 var x = 1 + 3 +;
 
 
-print £©∞$§∞@|§£|$[œ∞|[
+print £©∞$§∞@|§£|$[œ∞|[ض
 
 
 var y = 3;
 y + 2 = 4 + 3;
 
 {
-    var b = 10;
-    var b = 20;
+    var hello_there = 10;
+    var hello_there = 20;
 }
 
 
@@ -25,3 +24,6 @@ return;
 fun t(aaa,aab,aac,aad,aae,aaf,aag,aah,aai,aaj,aak,aal,aam,aan,aao,aap,aaq,aar,aas,aat,aau,aav,aaw,aax,aay,aaz,aaA,aaB,aaC,aaD,aaE,aaF,aaG,aaH,aaI,aaJ,aaK,aaL,aaM,aaN,aaO,aaP,aaQ,aaR,aaS,aaT,aaU,aaV,aaW,aaX,aaY,aaZ,aba,abb,abc,abd,abe,abf,abg,abh,abi,abj,abk,abl,abm,abn,abo,abp,abq,abr,abs,abt,abu,abv,abw,abx,aby,abz,abA,abB,abC,abD,abE,abF,abG,abH,abI,abJ,abK,abL,abM,abN,abO,abP,abQ,abR,abS,abT,abU,abV,abW,abX,abY,abZ,aca,acb,acc,acd,ace,acf,acg,ach,aci,acj,ack,acl,acm,acn,aco,acp,acq,acr,acs,act,acu,acv,acw,acx,acy,acz,acA,acB,acC,acD,acE,acF,acG,acH,acI,acJ,acK,acL,acM,acN,acO,acP,acQ,acR,acS,acT,acU,acV,acW,acX,acY,acZ,ada,adb,adc,add,ade,adf,adg,adh,adi,adj,adk,adl,adm,adn,ado,adp,adq,adr,ads,adt,adu,adv,adw,adx,ady,adz,adA,adB,adC,adD,adE,adF,adG,adH,adI,adJ,adK,adL,adM,adN,adO,adP,adQ,adR,adS,adT,adU,adV,adW,adX,adY,adZ,aea,aeb,aec,aed,aee,aef,aeg,aeh,aei,aej,aek,ael,aem,aen,aeo,aep,aeq,aer,aes,aet,aeu,aev,aew,aex,aey,aez,aeA,aeB,aeC,aeD,aeE,aeF,aeG,aeH,aeI,aeJ,aeK,aeL,aeM,aeN,aeO,aeP,aeQ,aeR,aeS,aeT,aeU,aeV) {
     print "Too many parameters";
 }
+
+
+print

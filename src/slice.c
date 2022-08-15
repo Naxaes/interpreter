@@ -1,6 +1,14 @@
 #include "slice.h"
 #include "error.h"
 
+Slice slice_make(const char* source, int count) {
+    return (Slice) { .source=source, .count=count };
+}
+
+Slice slice_str_offset(const char* source, int start, int count) {
+    return (Slice) { .source=&source[start], .count=count };
+}
+
 
 Slice slice_make_empty() {
     return (Slice) { .source=0, .count=0 };
@@ -22,39 +30,36 @@ bool slice_is_empty(Slice self) {
 
 
 Slice previous_line(const char* source, int index) {
-    const char* start = &source[index-1];
-    if (start < source)
+    if (index == 0)
         return slice_make_empty();
 
-    while (start != source && *start != '\n')
-        --start;
+    const char* stop = source + index - 1;
+    while (stop > source && *stop != '\n')
+        --stop;
 
-    if (start == source)
+    if (stop == source)
         return slice_make_empty();
 
-    if (start != source && *start == '\n') {
+    const char* start = stop;
+    while ((start-1) > source && *(start-1) != '\n')
         --start;
-        while (start != source && *start != '\n')
-            --start;
-    }
 
-    const char* stop = start;
-    while (*stop != '\0' && *stop != '\n')
-        ++stop;
-
-    return (Slice) { .source=start, .count=(int)(stop-start) };
+    if (start == stop)
+        return (Slice) { .source=" ", .count=1 };
+    else
+        return (Slice) { .source=start, .count=(int)(stop-start) };
 }
 
 
 Slice current_line(const char* source, int index) {
-    const char* start = &source[index];
-    if (start < source)
+    if (index == 0)
         return slice_make_empty();
 
-    const char* stop  = &source[index];
-
-    while (start != source && *(start-1) != '\n')
+    const char* start = source + index;
+    while (start > source && *(start-1) != '\n')
         --start;
+
+    const char* stop = source + index;
     while (*stop != '\0' && *stop != '\n')
         ++stop;
 
@@ -62,18 +67,23 @@ Slice current_line(const char* source, int index) {
 }
 
 Slice next_line(const char* source, int index) {
-    const char* start = &source[index];
+    if (index == 0)
+        return slice_make_empty();
 
+    const char* start = source + index;
     while (*start != '\0' && *start != '\n')
         ++start;
-    if (*start == '\n') start++;
+
+    if (*start == '\0')
+        return (Slice) { .source=" ", .count=1 };
+    ++start;  // @NOTE: Skip newline.
 
     const char* stop = start;
-    if (*start != '\0' && *start != '\n') {
-        stop = start+1;
-        while (*stop != '\0' && *stop != '\n')
-            ++stop;
-    }
+    while (*stop != '\0' && *stop != '\n')
+        ++stop;
 
-    return (Slice) { .source=start, .count=(int)(stop-start) };
+    if (start == stop)
+        return (Slice) { .source=" ", .count=1 };
+    else
+        return (Slice) { .source=start, .count=(int)(stop-start) };
 }

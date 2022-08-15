@@ -6,12 +6,6 @@
 #include "slice.h"
 
 
-typedef enum {
-    TYPE_SCRIPT,
-    TYPE_FUNCTION,
-} FunctionType;
-
-
 typedef struct {
     Obj  obj;
     int  size;

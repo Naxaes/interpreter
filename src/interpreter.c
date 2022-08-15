@@ -10,7 +10,7 @@
 
 #define STRING_TO_SLICE(x) ((Slice) { .source=x->data, .count=x->size })
 
-Error vm_run(const char* path, const char* source);
+Error vm_run(const char* path, const char* source, bool quiet);
 
 
 static Value clock_native(int arg_count, Value* args) {
@@ -43,7 +43,7 @@ ErrorCode call_value(Value peek, int count);
 VM vm = { 0 };
 
 
-#define VM_ERROR_MAKE(code_, arg_) (Error) { .path=path, .source=source, .function=(frame->function->name) ? (Slice) { .count=frame->function->name->size, .source=frame->function->name->data } : SLICE("script"), .code=code_, .location=frame->function->chunk.lines[(int) (frame->ip - frame->function->chunk.code - 1)], .arg=arg_ }
+#define VM_ERROR_MAKE(code_, arg_) (Error) { .path=path, .source=source, .function=(frame->function->name) ? (Slice) { .count=frame->function->name->size, .source=frame->function->name->data } : SLICE("script"), .code=code_, .start=chunk_line(&frame->function->chunk, (int) (frame->ip - frame->function->chunk.code - 2)), .count=1, .arg=arg_ }
 
 
 static void runtime_error(Error error) {
@@ -53,7 +53,7 @@ static void runtime_error(Error error) {
     for (int i = 0; i < vm.frame_count-1; ++i) {
         CallFrame* frame = &vm.frames[i];
         ObjFunction* function = frame->function;
-        Location loc = function->chunk.lines[(int) (frame->ip - function->chunk.code - 1)];
+        Location loc = chunk_line(&function->chunk, (int) (frame->ip - function->chunk.code - 1));
         if (function->name == NULL) {
             fprintf(stderr, "    at %s:%d:%d - <script>\n", error.path, loc.row, loc.col);
         } else {
@@ -111,7 +111,7 @@ Value vm_peek(int x) {
     return *(vm.stack_top-1-x);
 }
 
-void vm_interpret(const char* path, const char* source) {
+void vm_interpret(const char* path, const char* source, bool quiet) {
     ObjFunction* function = compile(path, source);
 
     if (function == NULL)
@@ -120,13 +120,13 @@ void vm_interpret(const char* path, const char* source) {
     vm_push(MAKE_OBJ(function));
     call(function, 0);
 
-    Error result = vm_run(path, source);
+    Error result = vm_run(path, source, quiet);
     if (result.code != NO_ERROR) {
         runtime_error(result);
     }
 }
 
-Error vm_run(const char* path, const char* source) {
+Error vm_run(const char* path, const char* source, bool quiet) {
     CallFrame* frame = &vm.frames[vm.frame_count - 1];
 
 #define READ_BYTE()     (*frame->ip++)
@@ -157,24 +157,26 @@ Error vm_run(const char* path, const char* source) {
 
 
     while (1) {
-#ifdef VM_DEBUG_TRACE_EXECUTION
-        printf(">>         ");
-        if (vm.stack >= vm.stack_top)
-            printf("[ ]");
-        else
-            for (Value* slot = vm.stack; slot < vm.stack_top; slot++) {
-                printf("[ ");
-                print_value(*slot);
-                printf(" ]");
-            }
-        printf("\n>> ");
-        chunk_instruction_disassemble(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code));
-#endif
+//#ifdef VM_DEBUG_TRACE_EXECUTION
+        if (!quiet) {
+            printf(">>         ");
+            if (vm.stack >= vm.stack_top)
+                printf("[ ]");
+            else
+                for (Value* slot = vm.stack; slot < vm.stack_top; slot++) {
+                    printf("[ ");
+                    print_value(*slot);
+                    printf(" ]");
+                }
+            printf("\n>> ");
+            chunk_instruction_disassemble(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code));
+        }
+//#endif
 
         u8 instruction;
         switch (instruction = READ_BYTE()) {
-            case OP_POP:      vm_pop();                    break;
-            case OP_CONSTANT: vm_push(READ_CONSTANT());    break;
+            case OP_POP:      vm_pop();                   break;
+            case OP_CONSTANT: vm_push(READ_CONSTANT());   break;
             case OP_TRUE:     vm_push(MAKE_BOOL(true));   break;
             case OP_FALSE:    vm_push(MAKE_BOOL(false));  break;
             case OP_NEGATE:   {
@@ -241,8 +243,6 @@ Error vm_run(const char* path, const char* source) {
                 break;
             }
             case OP_EXIT:
-                print_value(vm_pop());
-                printf("\n");
                 return VM_ERROR_MAKE(NO_ERROR, SLICE(""));
             case OP_PRINT: {
                 print_value(vm_pop());

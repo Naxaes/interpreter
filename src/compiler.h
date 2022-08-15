@@ -8,24 +8,17 @@
 #define COMPILER_MAX_ERRORS 32
 
 
-
 typedef struct {
-    Token name;
-    int   depth;
-} Local;
-
-
-typedef struct {
-    Parser* parser;
+    const char* path;
+    const char* source;
+    Token current;
+    Token previous;
 
     Error errors[COMPILER_MAX_ERRORS];
     int error_count;
 
     ObjFunction* function;
-    FunctionType type;
 
-    Local locals[256];
-    int   local_count;
     int   scope_depth;
 
     Value  constants[1024];

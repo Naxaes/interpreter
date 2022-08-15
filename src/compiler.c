@@ -21,7 +21,7 @@ typedef enum {
 
 void store_error(Compiler* self, Location start, ErrorCode code, Token token);
 
-static void parse_precedence(Compiler* compiler, Precedence precedence);
+static void parse_precedence(Compiler* compiler, Precedence precedence, Location start);
 static void emit_constant(Compiler* compiler, Value value);
 static u8 make_constant(Compiler* compiler, Value value);
 static void synchronize(Compiler* self);
@@ -34,7 +34,7 @@ static void variable(Compiler* compiler, bool can_assign);
 static void grouping(Compiler* compiler, bool can_assign);
 static void unary(Compiler* compiler, bool can_assign);
 static void binary(Compiler* compiler, bool can_assign);
-static void expression(Compiler* compiler);
+static void expression(Compiler* compiler, Location start);
 static void variable_declaration(Compiler* self);
 static void statement(Compiler* compiler);
 static void declaration(Compiler* compiler);
@@ -53,44 +53,34 @@ static void emit_loop(Compiler* self, int start);
 static void for_statement(Compiler* self);
 static ObjFunction* compiler_end(Compiler* self);
 static void function_declaration(Compiler* self);
-static void function(Compiler* self, FunctionType type);
+static void function(Compiler* self);
 static uint8_t argument_list(Compiler* self);
 static void return_statement(Compiler* self);
 
 
-Compiler compiler_make(Parser* parser, FunctionType type) {
+Compiler compiler_make(const char* path, const char* source) {
     Compiler compiler;
     compiler.function = function_make();
-    compiler.type = type;
 
     memset(compiler.errors, 0, sizeof(compiler.errors));
     compiler.error_count = 0;
 
-    compiler.parser = parser;
-    compiler.local_count   = 0;
+    compiler.path     = path;
+    compiler.source   = source;
+    compiler.current  = token_make_empty();
+    compiler.previous = token_make_empty();
+
     compiler.scope_depth   = 0;
     compiler.const_ptr     = 0;
     compiler.had_error     = false;
     compiler.in_panic_mode = false;
-
-    if (type != TYPE_SCRIPT) {
-        Slice name = parser_token_repr(compiler.parser, compiler.parser->previous);
-        compiler.function->name = string_make(name.source, name.count);
-    }
-
-
-    // @NOTE: The compiler implicitly claims stack slot zero
-    //  for the VM’s own internal use
-    Local* local = &compiler.locals[compiler.local_count++];
-    local->depth = 0;
-    local->name  =  token_make_empty();
 
     return compiler;
 }
 
 
 static void emit_byte(Compiler* self, u8 byte) {
-    chunk_write(&self->function->chunk, byte, token_location(self->parser->previous));
+    chunk_write(&self->function->chunk, byte, self->previous.location);
 }
 static void emit_bytes(Compiler* self, u8 byte1, u8 byte2) {
     emit_byte(self, byte1);
@@ -99,44 +89,65 @@ static void emit_bytes(Compiler* self, u8 byte1, u8 byte2) {
 
 
 static inline Token current_token(Compiler* self) {
-    return self->parser->current;
+    return self->current;
 }
 
 static inline Token previous_token(Compiler* self) {
-    return self->parser->previous;
+    return self->previous;
 }
 
 static inline bool check(Compiler* self, TokenType type) {
-    return self->parser->current.type == type;
+    return self->current.type == type;
+}
+
+static inline void next(Compiler* self) {
+    self->previous = self->current;
+    TokenResult result = token_after(self->source, self->current);
+    if (result.has_error)
+        store_error(self, result.token.location, result.error, result.token);
+    self->current = result.token;
 }
 
 static inline bool match(Compiler* self, TokenType type) {
     if (!check(self, type))
         return false;
-    advance(self->parser);
+    next(self);
     return true;
 }
 
 static inline void consume(Compiler* self, TokenType type, ErrorCode code) {
     if (!match(self, type)) {
-        Token token = self->parser->current;
+        Token token = self->current;
         store_error(self, token.location, code, token);
     }
 }
 
-void store_error(Compiler* self, Location location, ErrorCode code, Token token) {
-    if (self->in_panic_mode || self->error_count >= COMPILER_MAX_ERRORS)
+void store_error(Compiler* self, Location start, ErrorCode code, Token token) {
+    if (self->in_panic_mode || self->error_count >= COMPILER_MAX_ERRORS) {
+        self->previous = self->current;
+        TokenResult result = token_after(self->source, self->current);
+        self->current = result.token;
         return;
+    }
 
     self->in_panic_mode = true;
     self->had_error     = true;
 
+    int count = token.location.index + token.cols - start.index;
+    Slice arg = slice_str_offset(self->source, start.index, count);
+    if (token.type == TOKEN_EOF) {
+        count += 1;
+        arg = SLICE("End of file");
+    }
+    ASSERT(count > 0);
+
     self->errors[self->error_count++] = (Error) {
         .code=code,
-        .location=location,
-        .arg=parser_token_repr(self->parser, token),
-        .source=self->parser->source,
-        .path=self->parser->path,
+        .start=start,
+        .count=count,
+        .arg=arg,
+        .source=self->source,
+        .path=self->path,
         .function = (self->function->name) ? (Slice) { .source= self->function->name->data, .count=self->function->name->size } : SLICE("script")
     };
 }
@@ -186,12 +197,12 @@ static ParseRule* get_rule(TokenType type) {
 }
 
 
-static void parse_precedence(Compiler* self, Precedence precedence) {
-    advance(self->parser);
+static void parse_precedence(Compiler* self, Precedence precedence, Location start) {
+    next(self);
     Token token = previous_token(self);
     ParseFn prefix_rule = get_rule(token.type)->prefix;
     if (prefix_rule == NULL) {
-        store_error(self, token.location, COMPILE_ERROR_EXPECTED_PREFIX_TOKEN, token);
+        store_error(self, start, COMPILE_ERROR_EXPECTED_PREFIX_TOKEN, token);
         return;
     }
 
@@ -199,10 +210,10 @@ static void parse_precedence(Compiler* self, Precedence precedence) {
     prefix_rule(self, can_assign);
 
     while (precedence <= get_rule(current_token(self).type)->precedence) {
-        advance(self->parser);
-        ParseFn infix_rule = get_rule(self->parser->previous.type)->infix;
+        next(self);
+        ParseFn infix_rule = get_rule(previous_token(self).type)->infix;
         if (infix_rule == NULL) {
-            store_error(self, token.location, COMPILE_ERROR_EXPECTED_INFIX_TOKEN, token);
+            store_error(self, start, COMPILE_ERROR_EXPECTED_INFIX_TOKEN, token);
             return;
         }
         infix_rule(self, can_assign);
@@ -210,7 +221,7 @@ static void parse_precedence(Compiler* self, Precedence precedence) {
 }
 
 static uint8_t identifier_constant(Compiler* self, Token* name) {
-    Slice repr = parser_token_repr(self->parser, *name);
+    Slice repr = slice_str_offset(self->source, name->location.index, name->count);
     ObjString* string = string_make(repr.source, repr.count);
     return make_constant(self, MAKE_OBJ(string));
 }
@@ -222,7 +233,7 @@ static uint8_t parse_variable(Compiler* self, ErrorCode code) {
     if (self->scope_depth > 0)
         return 0;
 
-    return identifier_constant(self, &self->parser->previous);
+    return identifier_constant(self, &self->previous);
 }
 
 static void declare_variable(Compiler* self) {
@@ -230,8 +241,8 @@ static void declare_variable(Compiler* self) {
         return;
 
     Token name = previous_token(self);
-    for (int i = self->local_count - 1; i >= 0; i--) {
-        Local* local = &self->locals[i];
+    for (int i = self->function->chunk.local_count - 1; i >= 0; i--) {
+        Local* local = &self->function->chunk.locals[i];
         if (local->depth != -1 && local->depth < self->scope_depth) {
             break;
         }
@@ -248,19 +259,19 @@ static bool identifiers_equal(Compiler* self, Token* a, Token* b) {
     if (a->count != b->count)
         return false;
 
-    Slice repr_a   = parser_token_repr(self->parser, *a);
-    Slice repr_b   = parser_token_repr(self->parser, *b);
+    Slice repr_a   = slice_str_offset(self->source, a->location.index, a->count);
+    Slice repr_b   = slice_str_offset(self->source, b->location.index, b->count);
     bool  is_equal = memcmp(repr_a.source, repr_b.source, repr_a.count) == 0;
 
     return is_equal;
 }
 
 static void add_local(Compiler* self, Token name) {
-    if (self->local_count == 256) {
+    if (self->function->chunk.local_count == 256) {
         store_error(self, name.location, COMPILE_ERROR_TOO_MANY_LOCAL_VARIABLES, name);
         return;
     }
-    Local* local = &self->locals[self->local_count++];
+    Local* local = &self->function->chunk.locals[self->function->chunk.local_count++];
     local->name  = name;
     local->depth = -1;
 }
@@ -269,7 +280,7 @@ static void mark_initialized(Compiler* self) {
     if (self->scope_depth == 0)
         return;
 
-    self->locals[self->local_count - 1].depth = self->scope_depth;
+    self->function->chunk.locals[self->function->chunk.local_count - 1].depth = self->scope_depth;
 }
 
 static void define_variable(Compiler* self, uint8_t global) {
@@ -286,18 +297,17 @@ static void literal(Compiler* self, bool can_assign) {
         case TOKEN_FALSE: emit_byte(self, OP_FALSE); break;
         case TOKEN_TRUE:  emit_byte(self, OP_TRUE); break;
         default: {
-            Slice repr = parser_token_repr(self->parser, token);
+            Slice repr = slice_str_offset(self->source, token.location.index, token.count);
             PANIC("Unexpected token '%.*s'. Expected 'true' or 'false'", repr.count, repr.source);
         }
     }
 }
 
 static int resolve_local(Compiler* self, Token* name) {
-    for (int i = self->local_count - 1; i >= 0; i--) {
-        Local* local = &self->locals[i];
+    for (int i = self->function->chunk.local_count - 1; i >= 0; i--) {
+        Local* local = &self->function->chunk.locals[i];
         if (identifiers_equal(self, name, &local->name)) {
             if (local->depth == -1) {
-                Slice repr = parser_token_repr(self->parser, *name);
                 store_error(self, name->location, COMPILE_ERROR_READING_VARIABLE_IN_OWN_INITIALIZER, *name);
             }
             return i;
@@ -320,7 +330,7 @@ static void named_variable(Compiler* self, Token name, bool can_assign) {
     }
 
     if (can_assign && match(self, TOKEN_EQUAL)) {
-        expression(self);
+        expression(self, self->current.location);
         emit_bytes(self, set_op, (uint8_t) arg);
     } else {
         emit_bytes(self, get_op, (uint8_t) arg);
@@ -328,23 +338,26 @@ static void named_variable(Compiler* self, Token name, bool can_assign) {
 }
 
 static void variable(Compiler* self, bool can_assign) {
-    named_variable(self, self->parser->previous, can_assign);
+    named_variable(self, previous_token(self), can_assign);
 }
 
 static void num_i64(Compiler* self, bool can_assign) {
-    Slice repr = parser_token_repr(self->parser, previous_token(self));
+    Token token = previous_token(self);
+    Slice repr = slice_str_offset(self->source, token.location.index, token.count);
     Value value = MAKE_I64(strtoll(repr.source, NULL, 10));
     emit_constant(self, value);
 }
 
 static void num_f64(Compiler* self, bool can_assign) {
-    Slice repr = parser_token_repr(self->parser, previous_token(self));
+    Token token = previous_token(self);
+    Slice repr = slice_str_offset(self->source, token.location.index, token.count);
     Value value = MAKE_F64(strtod(repr.source, NULL));
     emit_constant(self, value);
 }
 
 static void string(Compiler* self, bool can_assign) {
-    Slice repr = parser_token_repr(self->parser, previous_token(self));
+    Token token = previous_token(self);
+    Slice repr = slice_str_offset(self->source, token.location.index, token.count);
     ObjString* string = string_make(repr.source, repr.count);
     Value constant = MAKE_OBJ(string);
     emit_constant(self, constant);
@@ -359,15 +372,15 @@ static u8 make_constant(Compiler* self, Value value) {
     int constant = chunk_add_constant(&self->function->chunk, value);
     if (constant > UINT8_MAX) {
         Token token = current_token(self);
-        store_error(self, token.location, COMPILE_ERROR_TOO_MANY_CONSTANTS, token_make_empty());
+        store_error(self, token.location, COMPILE_ERROR_TOO_MANY_CONSTANTS, token);
     }
 
     return (u8) constant;
 }
 
 static void grouping(Compiler* self, bool can_assign) {
-    expression(self);
-    expect(self->parser, TOKEN_RIGHT_PAREN);
+    expression(self, self->current.location);
+    consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_ARGS);
 }
 
 static void unary(Compiler* self, bool can_assign) {
@@ -375,14 +388,14 @@ static void unary(Compiler* self, bool can_assign) {
     TokenType operation = token.type;
 
     // Compile the operand.
-    parse_precedence(self, PRECEDENCE_UNARY);
+    parse_precedence(self, PRECEDENCE_UNARY, self->current.location);
 
     // Emit the operator instruction.
     switch (operation) {
         case TOKEN_MINUS:   emit_byte(self, OP_NEGATE);  break;
         case TOKEN_BANG:    emit_byte(self, OP_NOT);     break;
         default: {
-            Slice repr = parser_token_repr(self->parser, token);
+            Slice repr = slice_str_offset(self->source, token.location.index, token.count);
             PANIC("Unexpected unary operation '%.*s'. Expected '-' or '+'", repr.count, repr.source);
         }
     }
@@ -394,7 +407,7 @@ static void binary(Compiler* self, bool can_assign) {
     Token     token     = previous_token(self);
     TokenType operation = token.type;
     ParseRule* rule = get_rule(operation);
-    parse_precedence(self, (Precedence)(rule->precedence + 1));
+    parse_precedence(self, (Precedence)(rule->precedence + 1), self->current.location);
 
     switch (operation) {
         case TOKEN_PLUS:          emit_byte(self,  OP_ADD);             break;
@@ -411,38 +424,35 @@ static void binary(Compiler* self, bool can_assign) {
         case TOKEN_LESS_EQUAL:    emit_bytes(self, OP_GREATER, OP_NOT); break;
         case TOKEN_END_STMT:      emit_byte(self,  OP_RETURN);          break;
         default: {
-            Slice repr = parser_token_repr(self->parser, token);
+            Slice repr = slice_str_offset(self->source, token.location.index, token.count);
             PANIC("Unexpected binary operation '%.*s'. Expected '+', '-', '*', '/', 'and', 'or', '!', '!=', '==', '<', '<=', '>', or, '>='", repr.count, repr.source);
         }
     }
 }
 
-static void expression(Compiler* self) {
+static void expression(Compiler* self, Location start) {
     // We simply parse the lowest precedence level.
     // Except for PRECEDENCE_NONE.
-    parse_precedence(self, PRECEDENCE_ASSIGNMENT);
+    parse_precedence(self, PRECEDENCE_ASSIGNMENT, start);
 }
 
 
-static void expression_statement(Compiler* self) {
-    expression(self);
+static void expression_statement(Compiler* self, Location start) {
+    expression(self, start);
     consume(self, TOKEN_END_STMT, COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_EXPRESSION);
     emit_byte(self, OP_POP);
 }
 
 
 static void print_statement(Compiler* self) {
-    expression(self);
+    expression(self, self->current.location);
     consume(self, TOKEN_END_STMT, COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_EXPRESSION);
     emit_byte(self, OP_PRINT);
 }
 
-//static void statement(Compiler* compiler) {
-//    print_statement(compiler);
-//}
-
 
 static void declaration(Compiler* self) {
+    Location start = self->current.location;
     if (match(self, TOKEN_FUN)) {
         function_declaration(self);
     } else if  (match(self, TOKEN_VAR)) {
@@ -462,24 +472,24 @@ static void declaration(Compiler* self) {
     } else if (match(self, TOKEN_RETURN)) {
         return_statement(self);
     } else {
-        expression_statement(self);
+        expression_statement(self, start);
     }
 
-    if (parser_had_error(self->parser) || self->had_error)
+    if (self->had_error)
         synchronize(self);
 }
 
 static void return_statement(Compiler* self) {
-    if (self->type == TYPE_SCRIPT) {
-        Token token = current_token(self);
-        store_error(self, token.location, COMPILE_ERROR_TRYING_TO_RETURN_FROM_SCRIPT, token_make_empty());
+    if (self->scope_depth == 0) {
+        Token token = previous_token(self);
+        store_error(self, token.location, COMPILE_ERROR_TRYING_TO_RETURN_FROM_SCRIPT, token);
     }
 
     if (match(self, TOKEN_END_STMT)) {
         emit_byte(self, OP_NULL);
         emit_byte(self, OP_RETURN);
     } else {
-        expression(self);
+        expression(self, self->current.location);
         consume(self, TOKEN_END_STMT, COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_RETURN);
         emit_byte(self, OP_RETURN);
     }
@@ -488,38 +498,50 @@ static void return_statement(Compiler* self) {
 static void function_declaration(Compiler* self) {
     uint8_t global = parse_variable(self, COMPILE_ERROR_EXPECTED_FUNCTION_NAME);
     mark_initialized(self);
-    function(self, TYPE_FUNCTION);
+
+    ObjFunction* previous = self->function;
+    begin_scope(self);
+    {
+        Slice name = slice_str_offset(self->source, self->previous.location.index, self->previous.count);
+        self->function = function_make();
+        self->function->name = string_make(name.source, name.count);
+        function(self);
+    }
+    ObjFunction* function = compiler_end(self);
+    if (!function)
+        object_free((Obj*) self->function);
+    else
+        end_scope(self);
+
+    self->function = previous;
+
+    if (function)
+        emit_bytes(self, OP_CONSTANT, make_constant(self, MAKE_OBJ(function)));
+
     define_variable(self, global);
 }
 
-static void function(Compiler* self, FunctionType type) {
-    Compiler compiler = compiler_make(self->parser, type);
-    begin_scope(&compiler);
-
-    consume(&compiler, TOKEN_LEFT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_FUNCTION_NAME);
-    if (!check(&compiler, TOKEN_RIGHT_PAREN)) {
+static void function(Compiler* self) {
+    consume(self, TOKEN_LEFT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_FUNCTION_NAME);
+    if (!check(self, TOKEN_RIGHT_PAREN)) {
         do {
-            compiler.function->arity++;
-            if (compiler.function->arity > 255) {
-                store_error(&compiler, current_token(self).location, COMPILE_ERROR_TOO_MANY_PARAMETERS, token_make_empty());
+            self->function->arity++;
+            if (self->function->arity > 255) {
+                store_error(self, current_token(self).location, COMPILE_ERROR_TOO_MANY_PARAMETERS, current_token(self));
             }
-            uint8_t constant = parse_variable(&compiler, COMPILE_ERROR_EXPECTED_PARAMETER_NAME);
-            define_variable(&compiler, constant);
-        } while (match(&compiler, TOKEN_COMMA));
+            uint8_t constant = parse_variable(self, COMPILE_ERROR_EXPECTED_PARAMETER_NAME);
+            define_variable(self, constant);
+        } while (match(self, TOKEN_COMMA));
     }
 
-    consume(&compiler, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_PARAMETER);
-    consume(&compiler, TOKEN_LEFT_BRACE, COMPILE_ERROR_EXPECTED_BRACE_BEFORE_BODY);
-    block(&compiler);
+    consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_PARAMETER);
+    consume(self, TOKEN_LEFT_BRACE, COMPILE_ERROR_EXPECTED_BRACE_BEFORE_BODY);
+    block(self);
 
-    if (chunk_peek(&compiler.function->chunk) != OP_RETURN) {
-        emit_byte(&compiler, OP_NULL);
-        emit_byte(&compiler, OP_RETURN);
+    if (chunk_peek(&self->function->chunk) != OP_RETURN) {
+        emit_byte(self, OP_NULL);
+        emit_byte(self, OP_RETURN);
     }
-
-
-    ObjFunction* function = compiler_end(&compiler);
-    emit_bytes(self, OP_CONSTANT, make_constant(self, MAKE_OBJ(function)));
 }
 
 static void for_statement(Compiler* self) {
@@ -531,14 +553,14 @@ static void for_statement(Compiler* self) {
     if (match(self, TOKEN_VAR)) {
         variable_declaration(self);
     } else if (!match(self, TOKEN_END_STMT)) {
-        expression_statement(self);
+        expression_statement(self, self->current.location);
     }
 
     // Condition
     int loop_start = self->function->chunk.count;
     int exit_jump = -1;
     if (!match(self, TOKEN_END_STMT)) {
-        expression(self);
+        expression(self, self->current.location);
         consume(self, TOKEN_END_STMT, COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_LOOP_COND);
 
         // Jump out of the loop if the condition is false.
@@ -550,7 +572,7 @@ static void for_statement(Compiler* self) {
     if (!match(self, TOKEN_RIGHT_PAREN)) {
         int body_jump = emit_jump(self, OP_JUMP);
         int increment_start = self->function->chunk.count;
-        expression(self);
+        expression(self, self->current.location);
         emit_byte(self, OP_POP);
         consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_FOR_CLAUSE);
 
@@ -576,7 +598,7 @@ static void while_statement(Compiler* self) {
     int loop_start = self->function->chunk.count;
 
     consume(self, TOKEN_LEFT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_WHILE);
-    expression(self);
+    expression(self, self->current.location);
     consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_COND);
 
     int exit_jump = emit_jump(self, OP_JUMP_IF_FALSE);
@@ -593,7 +615,7 @@ static void emit_loop(Compiler* self, int start) {
 
     int offset = self->function->chunk.count - start + 2;
     if (offset > UINT16_MAX) {
-        store_error(self, current_token(self).location, COMPILE_ERROR_LOOP_BODY_TO_LARGE, token_make_empty());
+        store_error(self, current_token(self).location, COMPILE_ERROR_LOOP_BODY_TO_LARGE, current_token(self));
         return;
     }
 
@@ -610,7 +632,7 @@ static int emit_jump(Compiler* self, uint8_t instruction) {
 
 static void if_statement(Compiler* self) {
     consume(self, TOKEN_LEFT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_IF);
-    expression(self);
+    expression(self, self->current.location);
     consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_COND);
 
     int then_jump = emit_jump(self, OP_JUMP_IF_FALSE);
@@ -632,7 +654,7 @@ static void patch_jump(Compiler* self, int offset) {
     int jump = self->function->chunk.count - offset - 2;
 
     if (jump > UINT16_MAX) {
-        store_error(self, current_token(self).location, COMPILE_ERROR_TOO_LARGE_JUMP, token_make_empty());
+        store_error(self, current_token(self).location, COMPILE_ERROR_TOO_LARGE_JUMP, current_token(self));
     }
 
     self->function->chunk.code[offset]     = (jump >> 8) & 0xff;
@@ -653,9 +675,9 @@ static void begin_scope(Compiler* self) {
 
 static void end_scope(Compiler* self) {
     self->scope_depth -= 1;
-    while (self->local_count > 0 && self->locals[self->local_count - 1].depth > self->scope_depth) {
+    while (self->function->chunk.local_count > 0 && self->function->chunk.locals[self->function->chunk.local_count - 1].depth > self->scope_depth) {
         emit_byte(self, OP_POP);
-        self->local_count--;
+        self->function->chunk.local_count--;
     }
 }
 
@@ -668,12 +690,12 @@ static uint8_t argument_list(Compiler* self) {
     uint8_t arg_count = 0;
     if (!check(self, TOKEN_RIGHT_PAREN)) {
         do {
-            expression(self);
+            expression(self, self->current.location);
             arg_count++;
         } while (match(self, TOKEN_COMMA));
     }
     if (arg_count == 255) {
-        store_error(self, current_token(self).location, COMPILE_ERROR_TOO_MANY_ARGUMENTS, token_make_empty());
+        store_error(self, current_token(self).location, COMPILE_ERROR_TOO_MANY_ARGUMENTS, current_token(self));
     }
     consume(self, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_ARGS);
     return arg_count;
@@ -683,7 +705,7 @@ static void variable_declaration(Compiler* self) {
     uint8_t global = parse_variable(self, COMPILE_ERROR_EXPECTED_PARENS_AFTER_ARGS);
 
     consume(self, TOKEN_EQUAL, COMPILE_ERROR_EXPECTED_EQUAL_AFTER_VAR_DECL);
-    expression(self);
+    expression(self, self->current.location);
     consume(self, TOKEN_END_STMT, COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_VAR_DECL);
 
     define_variable(self, global);
@@ -691,7 +713,6 @@ static void variable_declaration(Compiler* self) {
 
 
 static void synchronize(Compiler* self) {
-    self->parser->in_panic_mode = false;
     self->in_panic_mode = false;
 
     // @NOTE: Skip over all tokens until we hit the start
@@ -710,7 +731,7 @@ static void synchronize(Compiler* self) {
             case TOKEN_RETURN:
                 return;
             default:
-                advance(self->parser);
+                next(self);
         }
 
     }
@@ -718,26 +739,7 @@ static void synchronize(Compiler* self) {
 
 
 static ObjFunction* compiler_end(Compiler* self) {
-    if (parser_had_error(self->parser)) {
-        for (int i = 0; i < self->parser->error_count; ++i) {
-            print_error(self->parser->errors[i]);
-        }
-    }
-
-    if (self->had_error) {
-        for (int i = 0; i < self->error_count; ++i) {
-            print_error(self->errors[i]);
-        }
-    }
-
-    if (!parser_had_error(self->parser) && !self->had_error) {
-        #ifdef COMPILER_OUTPUT_DISASSEMBLY
-            chunk_disassemble(
-                &self->function->chunk,
-                (self->function->name != NULL) ?
-                self->function->name->data: "<script>"
-            );
-        #endif
+    if (!self->had_error) {
         return self->function;
     }
 
@@ -746,13 +748,19 @@ static ObjFunction* compiler_end(Compiler* self) {
 
 
 ObjFunction* compile(const char* path, const char* source) {
-    Parser   parser   = parser_make(path, source);
-    Compiler compiler = compiler_make(&parser, TYPE_SCRIPT);
+    Compiler compiler = compiler_make(path, source);
 
-    advance(compiler.parser);
+    next(&compiler);
     while (!match(&compiler, TOKEN_EOF)) {
         declaration(&compiler);
     }
+
+    if (compiler.had_error) {
+        for (int i = 0; i < compiler.error_count; ++i) {
+            print_error(compiler.errors[i]);
+        }
+    }
+
 
     emit_byte(&compiler, OP_EXIT);
     return compiler_end(&compiler);

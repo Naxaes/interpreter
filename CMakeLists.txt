@@ -13,6 +13,7 @@ include_directories(src/)
 
 add_executable(
     chain src/chain.c
+    src/array.c
     src/chunk.c
     src/compiler.c
     src/error.c
@@ -23,6 +24,7 @@ add_executable(
     src/slice.c
     src/table.c
     src/token.c
+    src/utf8.c
     src/value.c
 )
 target_compile_definitions(chain PRIVATE -DVM_DEBUG_TRACE_EXECUTION -DDEBUG -DCOMPILER_OUTPUT_DISASSEMBLY)

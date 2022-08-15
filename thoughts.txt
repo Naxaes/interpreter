@@ -1,3 +1,16 @@
+---- Things to know -----
+* All imports must be at the top of the file.
+    This way, the compiler can read the first few lines of a
+    module and then fire of threads that recursively do the same
+    until they encounter a module without any imports. Once
+    it's found it, it'll start compile and recurse back.
+
+
+
+
+
+https://dyncall.org/
+
 References:
     * https://craftinginterpreters.com/contents.html
 
@@ -28,9 +41,13 @@ dot <file|func>         - Generates a dot Graphviz file.
 get [TODO|FIXME|...]    - Gets the annotations and sorts them (https://www.youtube.com/watch?v=assDDVG0PEo)
 refactor <subcommand>   - Refactoring (might be interactive)
     * rename <thing>    - Renames all instances of the thing.
-    * inline <thing>    - Copies the content into its calling poin
+    * inline <thing>    - Copies the content into its calling point
 
 
+---- JIT ----
+The compiler could output an OP-Code that basically tells the interpreter
+different places it should put literals after a certain value/function has
+been computed in order to minimize future work.
 
 ---- Hashing ----
 Instead of a dictionary lookup, we can truncate a name to an integer.

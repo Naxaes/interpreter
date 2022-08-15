@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 
 typedef enum {
@@ -69,6 +70,7 @@ typedef enum {
     COMPILE_ERROR_EXPECTED_PARENS_AFTER_COND,
     COMPILE_ERROR_EXPECTED_PARENS_AFTER_IF,
     COMPILE_ERROR_EXPECTED_PARENS_AFTER_ARGS,
+    COMPILE_ERROR_EXPECTED_PARENS_AFTER_GROUPING,
     COMPILE_ERROR_EXPECTED_EQUAL_AFTER_VAR_DECL,
     COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_VAR_DECL,
     COMPILE_ERROR_STOP_INDEX,
@@ -89,8 +91,9 @@ extern const char* ERROR_MESSAGE[];
 
 
 typedef struct {
-    ErrorCode code;
-    Location  location;
+    ErrorCode   code;
+    Location    start;
+    int         count;
     Slice       arg;
     const char* path;
     const char* source;
@@ -111,7 +114,7 @@ typedef struct {
 #define ASSERT(x)        do { if (!(x)) { fprintf(stderr, "%s:%d: Assertion '" #x "' failed", __FILE__, __LINE__); raise(SIGINT); }}  while(0)
 #define ASSERTF(x, ...)  do { if (!(x)) { fprintf(stderr, "%s:%d: Assertion '" #x "' failed. ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); raise(SIGINT); }}  while(0)
 
-#define PANIC(...)  do { fprintf(stderr, "[PANIC] %s:%d:\n    ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); raise(SIGINT); }  while(0)
+#define PANIC(...)  do { fprintf(stderr, "[PANIC] %s:%d:\n    ", __FILE__, __LINE__); fprintf(stderr, __VA_ARGS__); raise(SIGINT); exit(-1); }  while(0)
 
 
 

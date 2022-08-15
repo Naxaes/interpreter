@@ -21,6 +21,7 @@ const char* ERROR_MESSAGE[] = {
         [COMPILE_ERROR_EXPECTED_END_STATEMENT_AFTER_RETURN]      = "Expected ';' after return expression, but got '%.*s'",
         [COMPILE_ERROR_EXPECTED_FUNCTION_NAME]                   = "Expected function name",
         [COMPILE_ERROR_EXPECTED_PARENS_AFTER_FUNCTION_NAME]      = "Expected '(' after function name",
+        [COMPILE_ERROR_EXPECTED_PARENS_AFTER_GROUPING]           = "Expected ')' after starting expression with '('",
         [COMPILE_ERROR_EXPECTED_PARENS_AFTER_PARAMETER]          = "Expected ')' after parameters",
         [COMPILE_ERROR_EXPECTED_PARAMETER_NAME]                  = "Expected parameter name",
         [COMPILE_ERROR_EXPECTED_BRACE_BEFORE_BODY]               = "Expected '{' before function body",
@@ -58,32 +59,28 @@ void print_error(Error error) {
     else
         PANIC("Non-valid code '%d'", (int) error.code);
 
-    Slice line_before = previous_line(error.source, error.location.index);
-    Slice line_on     = current_line(error.source,  error.location.index);
-    Slice line_after  = next_line(error.source,     error.location.index);
-
-    int row    = error.location.row;
-    int column = error.location.col;
+    Slice line_before = previous_line(error.source, error.start.index);
+    Slice line_on     = current_line(error.source,  error.start.index);
+    Slice line_after  = next_line(error.source,     error.start.index);
 
     char arrow_buffer[1024] = { 0 };
-    int n = (column < 1024) ? column-1 : 1024-2;
+    int n = (error.start.col < 1022) ? error.start.col : 1022;
     for (int j = 0; j < n; ++j) {
         arrow_buffer[j] = '-';  // (i % 5 == 4) ? '*' : '-';
     }
-    arrow_buffer[n]   = '^';
-    arrow_buffer[n+1] = '\0';
-
-    if (!slice_is_empty(error.function)) {
-        fprintf(
-            stderr, "[%s] Error in function '%.*s' at %s:%d:%d:\n    ",
-            type,
-            error.function.count, error.function.source,
-            error.path,
-            row, column
-        );
-    } else {
-        fprintf(stderr, "[%s] Error in script at %s:%d:%d::\n    ", type, error.path, row, column);
+    int m = (n+error.count < 1023) ? n+error.count : 1023;
+    for (int j = n; j < m; ++j) {
+        arrow_buffer[j] = '^';  // (i % 5 == 4) ? '*' : '-';
     }
+    arrow_buffer[m] = '\0';
+
+    fprintf(
+        stderr, "[%s] Error in '%.*s' at %s:%d:%d:\n    ",
+        type,
+        error.function.count, error.function.source,
+        error.path,
+        error.start.row, error.start.col
+    );
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wformat-nonliteral"
@@ -95,15 +92,19 @@ void print_error(Error error) {
     }
 #pragma clang diagnostic pop
 
+    fprintf(stderr, ".\n");
+    if (line_before.count > 0) {
+        fprintf(stderr, "    %-4d| %.*s\n", error.start.row-1, line_before.count, line_before.source);
+    }
     fprintf(stderr,
-        ".\n"
-        "    %-4d| %.*s\n"
-        "    %-4d| %.*s\n"
-        "        | %s\n"
-        "    %-4d| %.*s\n",
-        row-1, line_before.count, line_before.source,
-        row  , line_on.count,     line_on.source,
-        arrow_buffer,
-        row+1, line_after.count, line_after.source
+            "    %-4d| %.*s\n"
+            "        |-%s\n",
+            error.start.row, line_on.count, line_on.source,
+            arrow_buffer
     );
+
+    if (line_after.count > 0) {
+        fprintf(stderr, "    %-4d| %.*s\n", error.start.row+1, line_after.count, line_after.source);
+    }
+
 }

@@ -34,4 +34,4 @@ void  vm_free();
 void  vm_push(Value value);
 Value vm_pop();
 Value vm_peek(int x);
-void  vm_interpret(const char* path, const char* source);
+void  vm_interpret(const char* path, const char* source, bool quiet);

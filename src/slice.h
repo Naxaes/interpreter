@@ -9,6 +9,9 @@ typedef struct {
 
 #define SLICE(x) (Slice) { .source=(x), .count=sizeof(x) - 1 }
 
+Slice slice_make(const char* source, int count);
+Slice slice_str_offset(const char* source, int start, int stop);
+
 Slice slice_make_empty();
 
 bool slice_equals(Slice a, Slice b);

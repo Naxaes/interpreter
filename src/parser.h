@@ -27,3 +27,13 @@ void parser_flush_errors(Parser* self);
 
 Slice parser_token_repr(Parser* self, Token token);
 
+
+typedef struct {
+    Token token;
+    ErrorCode error;
+    bool  has_error;
+} TokenResult;
+
+TokenResult get_token(const char* source);
+
+TokenResult token_after(const char* source, Token token);

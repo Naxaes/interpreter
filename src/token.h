@@ -46,6 +46,7 @@ typedef enum {
     TOKEN_RETURN,
 
     TOKEN_COMMA,
+    TOKEN_DOT,
 
     TOKEN_PRINT_STMT,
     TOKEN_END_STMT,
@@ -64,8 +65,7 @@ typedef struct {
     TokenType type;
     Location location;
     int count;
+    int cols;
 } Token;
 
-Location token_location(Token token);
 Token token_make_empty();
-Token token_make(TokenType type, Location location, int count);

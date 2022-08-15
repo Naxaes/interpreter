@@ -6,7 +6,7 @@ fun temp(y) {
 
 fun hello(y) {
     var x = 10 + y;
-    temp();
+    temp(0);
     print x();
 }
 
@@ -14,5 +14,5 @@ fun main(a, b, c) {
     hello(a + b);
 }
 
-main(10, 11, 12, 11);
+main(10, 11, 12);
 

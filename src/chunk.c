@@ -1,22 +1,34 @@
 #include "memory.h"
 #include "chunk.h"
 #include "opcodes.h"
+#include "error.h"
 
 
 // Internal
 static int instruction_constant(const char* name, Chunk* chunk, int offset);
 static int instruction_simple(const char* name, int offset);
-int instruction_byte(const char* name, Chunk* chunk, int offset);
-int instruction_jump(const char* name, int sign, Chunk* chunk, int offset);
+static int instruction_byte(const char* name, Chunk* chunk, int offset);
+static int instruction_jump(const char* name, int sign, Chunk* chunk, int offset);
 static int instruction_identifier(const char* name, Chunk* chunk, int offset);
-
+static void chunk_add_line(Chunk* chunk, Location location);
 
 Chunk chunk_make() {
     Chunk chunk;
     memset(chunk.constants, 0, CHUNK_CONSTANTS_MAX);
     chunk.constant_count = 0;
 
+    chunk.location_previous = (Location) { .row=0, .col=0, .index=0 };
+    chunk.location_count = 1;
+    chunk.location_capacity  = GROW_CAPACITY(0);
+    chunk.locations = RESIZE_ARRAY(int, NULL, 0, chunk.location_capacity);
+    chunk.locations[0] = 0;
+
     chunk.lines  = NULL;
+
+    chunk.local_count = 0;
+    Local* local = &chunk.locals[chunk.local_count++];
+    local->depth = 0;
+    local->name  =  token_make_empty();
 
     chunk.code     = NULL;
     chunk.count    = 0;
@@ -32,6 +44,9 @@ void chunk_write(Chunk* chunk, u8 byte, Location location) {
         chunk->code      = RESIZE_ARRAY(uint8_t, chunk->code, old_capacity, chunk->capacity);
         chunk->lines     = RESIZE_ARRAY(Location, chunk->lines, old_capacity, chunk->capacity);
     }
+
+    chunk_add_line(chunk, location);
+    chunk->location_previous = location;
 
     chunk->code[chunk->count]  = byte;
     chunk->lines[chunk->count] = location;
@@ -55,6 +70,65 @@ void chunk_free(Chunk* chunk) {
     FREE_ARRAY(u8,  chunk->code,  chunk->capacity);
     FREE_ARRAY(int, chunk->lines, chunk->capacity);
     *chunk = chunk_make();
+}
+
+Location chunk_line(const Chunk* chunk, int offset) {
+    return chunk->lines[offset];
+    int row = 0;
+    int col = 0;
+    int index = 0;
+
+
+    for (int i = 0; i < chunk->location_count && index < offset; ++i) {
+        int x = chunk->locations[i];
+        if (x > 0) {
+            col   += x;
+            index += x;
+        } else {
+            col  = 0;
+            row -= x;
+            index -= x;
+        }
+    }
+
+    if (index == offset)
+        return (Location) { .row=row, .col=col, .index=index };
+    else
+        return (Location) { .row=row, .col=col, .index=index };
+}
+
+static void chunk_add_line(Chunk* chunk, Location location) {
+    int* previous = &chunk->locations[chunk->location_count-1];
+    int rows  = location.row - chunk->location_previous.row;
+    int cols  = location.col - chunk->location_previous.col;
+
+    if (*previous <= 0 && rows > 0) {
+        // Add to row count.
+        *previous -= rows;
+    } else if (*previous > 0 && rows == 0) {
+        // Add to column count.
+        *previous += cols;
+        return;
+    }
+
+    if (*previous > 0 && rows > 0) {
+        if (chunk->location_count + 1 >= chunk->location_capacity) {
+            int old_location_capacity = chunk->location_capacity;
+            chunk->location_capacity  = GROW_CAPACITY(old_location_capacity);
+            chunk->locations = RESIZE_ARRAY(int, chunk->locations, old_location_capacity, chunk->location_capacity);
+        }
+        // Append a new row count.
+        chunk->locations[chunk->location_count++] = -rows;
+    }
+    if (*previous < 0 && cols > 0) {
+        if (chunk->location_count + 1 >= chunk->location_capacity) {
+            int old_location_capacity = chunk->location_capacity;
+            chunk->location_capacity  = GROW_CAPACITY(old_location_capacity);
+            chunk->locations = RESIZE_ARRAY(int, chunk->locations, old_location_capacity, chunk->location_capacity);
+        }
+        // Append a new column count.
+        chunk->locations[chunk->location_count++] = cols;
+    }
 }
 
 
@@ -114,14 +188,14 @@ int chunk_instruction_disassemble(Chunk* chunk, int offset) {
     }
 }
 
-int instruction_jump(const char* name, int sign, Chunk* chunk, int offset) {
+static int instruction_jump(const char* name, int sign, Chunk* chunk, int offset) {
     uint16_t jump = (uint16_t)(chunk->code[offset + 1] << 8);
     jump |= chunk->code[offset + 2];
     printf("%-20s %04d -> %04d\n", name, offset, offset + 3 + sign * jump);
     return offset + 3;
 }
 
-int instruction_byte(const char* name, Chunk* chunk, int offset) {
+static int instruction_byte(const char* name, Chunk* chunk, int offset) {
     uint8_t slot = chunk->code[offset + 1];
     printf("%-20s %-4d\n", name, slot);
     return offset + 2;
