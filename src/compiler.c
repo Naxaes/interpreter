@@ -159,9 +159,11 @@ typedef struct {
     Precedence precedence;
 } ParseRule;
 
-ParseRule rules[] = {
+ParseRule rules[] = {           //  prefix    infix
         [TOKEN_LEFT_PAREN]    = {   grouping, call,   PRECEDENCE_CALL    },
         [TOKEN_RIGHT_PAREN]   = {   NULL,     NULL,   PRECEDENCE_NONE    },
+//        [TOKEN_LEFT_BRACKET]  = {   list,     index,   PRECEDENCE_CALL    },
+//        [TOKEN_RIGHT_BRACKET] = {   NULL,     NULL,   PRECEDENCE_NONE    },
         [TOKEN_MINUS]         = {   unary,    binary, PRECEDENCE_TERM    },
         [TOKEN_PLUS]          = {   NULL,     binary, PRECEDENCE_TERM    },
         [TOKEN_SLASH]         = {   NULL,     binary, PRECEDENCE_FACTOR  },

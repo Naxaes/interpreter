@@ -1,20 +1,30 @@
 var x = 10;
-print x;  // Prints 10
+print(x);  // Prints 10
 
 // Prints 'Not ok!'
-if (x != 10)
-    print "Ok!";
-else
-    print "Not ok!";
+if (x != 10) {
+    print("Ok!");
+} else if (x == 4) {
+    print("More ok!");
+} else if (x == 5) {
+    print("Less ok!");
+} else if (x == 6) {
+    print("Not ok!");
+} else {
+    print("NO!");
+}
 
 while (x > 0) {
-    if (x == 3) print x;
+    if (x == 3) { print(x); }
     x = x - 1;
 }
 
+/*
 for (var i = 0; i < 10; i = i + 2) {
-    if (i == 10 - 5 * 2)
-        print i;
+    if (i == 10 - 5 * 2) {
+        print(i);
+    }
 }
+*/
 
 

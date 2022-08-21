@@ -7,7 +7,7 @@ fun temp(y) {
 fun hello(y) {
     var x = 10 + y;
     temp(0);
-    print x();
+    print(x());
 }
 
 fun main(a, b, c) {

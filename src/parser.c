@@ -221,6 +221,8 @@ TokenResult token_after(const char* source, Token token) {
     case '*':  T(1, TOKEN_STAR);
     case '(':  T(1, TOKEN_LEFT_PAREN);
     case ')':  T(1, TOKEN_RIGHT_PAREN);
+    case '[':  T(1, TOKEN_LEFT_BRACKET);
+    case ']':  T(1, TOKEN_RIGHT_BRACKET);
     case '{':  T(1, TOKEN_LEFT_BRACE);
     case '}':  T(1, TOKEN_RIGHT_BRACE);
     case ';':  T(1, TOKEN_END_STMT);

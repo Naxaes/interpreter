@@ -9,7 +9,6 @@ set(DEBUG_FLAGS "-O0 -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-
 set(FLAGS -O2)
 
 set(CMAKE_C_FLAGS "${WARNINGS} ${DEBUG_FLAGS}")
-include_directories(src/)
 
 add_executable(
     chain src/chain.c
@@ -27,6 +26,7 @@ add_executable(
     src/utf8.c
     src/value.c
 )
+target_include_directories(chain PRIVATE src/)
 target_compile_definitions(chain PRIVATE -DVM_DEBUG_TRACE_EXECUTION -DDEBUG -DCOMPILER_OUTPUT_DISASSEMBLY)
 
 add_executable(
@@ -41,3 +41,5 @@ add_executable(
     src/table.c
     src/value.c
 )
+
+add_subdirectory(optimized)

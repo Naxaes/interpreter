@@ -74,3 +74,349 @@ Given the formula, names can be represented by following types:
 
 Maybe we can deterministically store every identifier <=85 in a
 sparse set of 8,789146502e+152 possible entries?
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+---- AST ---
+
+-- AST grammar --
+@ - store
+$ - temp buffer operation
+! - Inline node name
+
+module:
+    | @name [<stmt>]*
+stmt:
+    | !break
+    | !continue
+    | !return $PUSH <expr>
+    | !defer $PUSH <block>
+    | !pass
+    | !unreachable
+    | !using @id [(!field-access @id)]*
+    | <enum-decl>
+    | <for>
+    | <fn-decl>
+    | <if>
+    | <var-decl>
+    | <var-assign>
+    | <struct-decl>
+    | <while>
+    | <block>
+    | <func-call>
+    | on_return <block>
+
+block:
+    | $CATCH defer-block & yield-expr [<smts>]* [$COMMIT defer-block]   (any defer-block should be pushed to temp buffer)
+
+while-decl:
+    | <expr> <block>
+
+
+It's no problem to use an arena allocator and
+relative pointers when parsing the source to
+an AST, unless the syntax is such that the there's
+an unknown amount of tokens before knowing the type
+of the node, which is only true for binary operations.
+This can, however, be solved with a look-ahead buffer.
+
+The first function to parse an expression
+swaps out the real buffer for the look-ahead buffer.
+Then each binary operation parse function stores the
+current position of the buffer. If it matches,
+they'll commit the changes from the look-ahead buffer
+into the arena allocator.
+
+This means that only expressions will look-ahead. If
+we want a block as an expression, then we would use
+a yield statement that pushes to a yield buffer (just
+as defer pushes to a defer buffer).
+
+
+
+
+If we can notice that an error is propagated up through
+several layers of call stacks, it could be possible to
+eliminate all jumps and do a long jump to the function
+that handles the error (unless any of the intermediate
+functions has any defer statements).
+
+
+
+-- Lookup --
+Use a hashtable that store indices to a string pool:
+    Table [  -  -  -  -  ]
+              'a'
+    Table [ -  0  -  - ]
+              'a'   'b'
+    Table [ -  0  -  1 ]     # capacity < 2*size  => Resize!
+                          'b'   'a'
+    Table [ -  -  -  -  -  1  -  0 ]
+              'c'         'b'   'a'
+    Table [ -  2  -  -  -  0  -  1 ]
+
+This allows us to give every string a unique ID that
+can be compared to directly and efficiently in the
+AST, and have a dynamically resizeable data structure.
+
+Use the max-value to mean an extension node will follow.
+
+Most expressions are simple and could be inlined with a
+flag. If we expect an expression and the temp buffer has
+not been consumed, then we can easily just inline that node
+and skip storing location and other metadata that's given
+by the context.
+
+
+Hashtable: https://www.dropbox.com/s/5wxmeffrm1i5zqw/Pycon2017CompactDictTalk.pdf?dl=0
+
+
+Token:
+    flag: u8 | offset: u24 | row: u20 | column: u12
+
+
+
+// `ast` is the type of node.
+// `offset` is where it's located in the source.
+// To print the full node we simply reparse from
+// the offset.
+Base:
+    ast: u8 | offset: u24 | row: u20 | column: u12
+
+
+// `Id` is anything that requires lookup. A variable,
+// variable declaration, variable assignment, function
+// call, function declaration, and module import.
+Id < Base:
+    ast: Base
+    // Generated from hashmap.
+    // Also, provide a cache as identifiers are often looked up
+    // quite temporally frequent.
+    name: u16
+
+Type < Base:
+    ast: Base                                                                                   |
+    // An encoding telling the type of the primitive.                                           0
+    // If MAXu8, then it's a user defined type and                                          Inferred
+    // `type should be used.` See ->                                                       /    |    \
+    primitive: u8                                                                        01     10    11
+    // Index to array of const char* of type names.                                   Number   Array   Map
+    // Names will be hashed, so each distinct value                                  /    \
+    // will be a distinct type.                                                   0101    011
+    type: u16                                                float > f16 > f32 > f64       int > bool > i8 = char > i16 > u8 > i32 > u16 > i64 > u32 = rune > i128 > u64 > u128
+    where: ---
+
+Literal < Base:
+    ast:  Base
+    type: Type.primitive
+
+// Some literals can contain expressions, such as Array, Map, Set, Brace-init
+MultiLiteral < Base:
+    ast:  Base
+    type: Type.primitive
+    more: ---
+
+Subscript < Base:
+    ast: Base
+    var: Id
+    exp: ---
+
+(1 + a + 2*b + 8) + (5*6 - 7*c*9/2);
+(B(1+a) + 2*b + 8) + (5*6 - 7*c*9/2);
+(B(1+a) + B(2*b) + 8) + (5*6 - 7*c*9/2);
+(B(B(1+a)+B(2*b)) + 8) + (5*6 - 7*c*9/2);
+B(B(B(1+a)+B(2*b))+8) + (5*6 - 7*c*9/2);
+
+// Needs to implement a look-ahead buffer.
+BinOp < Base:
+    ast: Base
+    lhs:  ---
+    rhs:  ---
+    op:   u8
+
+FuncCall < Base:
+    ast:   Base
+    id:    Id
+    arg_c: u8
+    args:  ---
+
+Slice < Base:
+    ast:  Base
+    id:   Id
+    flag: u3   // Which of start, stop and step that are present.
+    start: ---
+    stop:  ---
+    step:  ---
+
+VarAssign < Base:
+    ast:  Base
+    var:  Id
+    expr: ---
+
+VarDecl < Base:
+    ast:  Base
+    var:  Id
+    type: Type
+    expr: ---
+
+FuncDecl < Base:
+    ast:  Base
+    var:  Id
+    flag: u16
+    param_c: u16
+    params:  --- (VarDecl)
+    ret:  Type  (ast, WhereDecl)
+    body: ---
+
+StructDecl < Base:
+    ast:  Base
+    var:  Id
+    ret:  Type
+    flag: u16
+    field_c: u16
+    fields:  --- VarDecl
+
+ReturnDecl < Base:
+    ast:  Base
+    expr: ---
+
+IfDecl < Base:
+    ast:  Base
+    cond: ---
+    body: ---
+    ifs:  ---
+
+WhileDecl < Base:
+    ast:  Base
+    cond: ---
+    body: ---
+
+ForEachDecl < Base:
+    ast:  Base
+    var:  Id
+    iter: ---
+    body: ---
+
+ModuleDecl < Base:
+    ast:  Base
+    name:  Id
+    decls: ---
+
+
+---- main ----
+fun sum(a, b, c) {
+  print a + b + c;
+}
+
+fun sum_and_return(a, b, c) {
+
+  fun test(x) {
+    return 1 + x - 1;
+  }
+  return a + b + test(c);
+}
+
+var start = clock();
+
+print 4;
+print sum(5, 6, 7);              // null (prints 18)
+print sum_and_return(1, 2, 3);   // 6
+
+ModuleDecl [main]
+    |- FunDecl[sum, -]      <-- Patched to 3.
+        |- Identifier['a']
+        |- Identifier['b']
+        |- Identifier['c']
+        |- Block
+            |- FuncCall
+                |- Id['print']
+            |- BinOp[+]         <-- Rearranges with look-ahead buffer.
+                |- Identifier['c']
+                |- BinOp[+]
+                    |- Identifier['a']
+                    |- Identifier['b']
+    |- FunDecl[sum_and_return, -]      <-- Patched to 3.
+        |- Identifier['a']
+        |- Identifier['b']
+        |- Identifier['c']
+        |- Block
+            |- FunDecl[test, -]      <-- Patched to 3.
+                |- Identifier['x']
+                |- Block
+                    |- ReturnDecl
+                        |- BinOp[-]         <-- Rearranges with look-ahead buffer.
+                            |- Identifier['1']
+                            |- BinOp[+]
+                                |- Identifier['1']
+                                |- Identifier['x']
+                |- ReturnDecl
+                    |- BinOp[+]         <-- Rearranges with look-ahead buffer.
+                        |- FuncCall['test']
+                            |- Identifier['c']
+                        |- BinOp[+]
+                            |- Identifier['a']
+                            |- Identifier['b']
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+We can store a variable's current scope in a u8 if we
+restrict the programmer to a maximum of 105 scopes.
+0000 0001   - 1     // Global scope
+
+0000 0010   - 2     // Scope 1
+0000 0011   - 3     // Scope 1 and Global
+
+0000 0100   - 4
+0000 0110   - 6
+0000 0111   - 7
+
+0000 1000   - 8
+0000 1100   - 12
+0000 1110   - 14
+0000 1111   - 15
+
+0001 0000   - 16
+0001 1000   - 24
+0001 1100   - 28
+0001 1110   - 30
+0001 1111   - 31
+
+....
+
+16 scopes requires = 1+2+3+4+5+6+7+8+9+10+11+12+13+14 = 105 => 8 bits.

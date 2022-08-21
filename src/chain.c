@@ -217,7 +217,7 @@ int main(int argc, const char* const argv[]) {
             ASSERTF(commands.input_file != NULL, "Not implemented");
             break;
         } case DIS: {
-            // @TODO: Read from a dissasembled file instead.
+            // @TODO: Read from a disassembled file instead.
             ObjFunction* script = compile(commands.input_file, load_file(commands.input_file));
             if (script) {
                 chunk_disassemble(&script->chunk, commands.input_file);
