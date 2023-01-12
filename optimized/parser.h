@@ -65,12 +65,12 @@ extern const char* ERROR_MESSAGE[];
 void print_error(Error error);
 
 
-declare_table(Ast*, ast)
 declare_table(Ast_Identifier, variable)
 declare_table(Type, type)
 declare_table(u32, u32)
 
-declare_array(Slice)
+declare_dynarray(Ast_Identifier)
+declare_dynarray(Slice)
 
 
 #define PARSER_MAX_ERRORS 32
@@ -80,20 +80,26 @@ typedef struct {
     Location    location;
 
     Array_Token tokens;
-    int token_it;
+    u32 token_it;
 
-    Table_ast declarations;
+    u32 depth;
 
-    Table_variable variables;
-    Table_type     types;
+//    Table_ast declarations;
+
+    Table_type types;
+
+    // An lookup table of unique identifier names.
+    Table_variable variable_cache;
+    // An array of unique identifier names. Identical names
+    // in different scopes are different identifiers.
+    DynArray_Slice variables;
+    // Used for the local offset of the identifier.
+    u32 name_count_for_current_depth;
+
+    // An array of unique string literals.
     Table_u32      string_map;
+    DynArray_Slice strings;
 
-    Array_Slice names;
-    int name_count;
-    Array_Slice strings;
-    int string_count;
-
-    u8 scope_depth;
 
     StackAllocator buffer;
     StackAllocator look_ahead_buffer;

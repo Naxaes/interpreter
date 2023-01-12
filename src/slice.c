@@ -87,3 +87,27 @@ Slice next_line(const char* source, int index) {
     else
         return (Slice) { .source=start, .count=(int)(stop-start) };
 }
+
+
+
+
+
+
+
+
+
+
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdbool.h>
+
+typedef struct {
+    size_t count;
+    const char* data;
+} StringView;
+
+#define SV(cstr_lit) (StringView) { .count = sizeof(cstr_lit) - 1, .data = (cstr_lit)}
+#define SV_NULL (String_View) { 0, 0 }
+
+#define SV_Fmt "%.*s"
+#define SV_Arg(sv) (int) (sv).count, (sv).data

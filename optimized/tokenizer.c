@@ -1,7 +1,8 @@
 #include "tokenizer.h"
 #include "utf8.h"
 #include "slice.h"
-
+#include <stdlib.h>
+#include "nax_logging/nax_logging.h"
 
 
 typedef enum {
@@ -70,7 +71,7 @@ typedef struct {
 
 
 static inline TokenOpt make_token(TokenType type, Location location) {
-    D_ASSERT(type < 255 && !token_is_error(type));
+    nax_assert(type < 255 && !token_is_error(type));
     TokenOpt token;
     memcpy(&token, &location, sizeof(token));
     token.type = (TokenTypeOpt) type;
@@ -78,7 +79,7 @@ static inline TokenOpt make_token(TokenType type, Location location) {
 }
 
 static inline TokenOpt make_error(Location location, TokenTypeOpt error) {
-    D_ASSERT(token_is_error(error));
+    nax_assert(token_is_error(error));
     TokenOpt token;
     memcpy(&token, &location, sizeof(token));
     token.type = error;
@@ -131,7 +132,7 @@ static Location skip_line_comment(const char* source, Location location) {
     u64 row    = location.row;
     u64 column = location.column;
 
-    D_ASSERT(source[offset] == '/' && source[offset + 1] == '/');
+    nax_assert(source[offset] == '/' && source[offset + 1] == '/');
     const char* start = source + offset;
 
     // @NOTE: Skip '//'
@@ -155,7 +156,7 @@ static Location skip_block_comment(const char* source, Location location) {
     u64 row    = location.row;
     u64 column = location.column;
 
-    D_ASSERT(source[offset] == '/' && source[offset + 1] == '*');
+    nax_assert(source[offset] == '/' && source[offset + 1] == '*');
     int current_it = 0;
 
     // @NOTE: Skip '/*'
@@ -223,7 +224,7 @@ static TokenView parse_string(const char* source, Location location) {
     u64 row    = location.row;
     u64 column = location.column;
 
-    D_ASSERT(source[location.offset] == '"');
+    nax_assert(source[location.offset] == '"');
     const char* start = source + offset;
 
     // @NOTE: Skip '"'
@@ -353,7 +354,7 @@ static TokenView parse_unknown(const char* source, Location location) {
 }
 
 
-STATIC_ASSERT(TOKEN_OPT_ERROR_END-TOKEN_OPT_ERROR_BEGIN == 1, assuming_error);
+static_assert(TOKEN_OPT_ERROR_END-TOKEN_OPT_ERROR_BEGIN == 1, "assuming_error");
 TokenView token_opt_view(const char* source, TokenOpt token) {
     Location location = token_opt_location(token);
     switch (token.type) {
@@ -364,10 +365,10 @@ TokenView token_opt_view(const char* source, TokenOpt token) {
             return view;
         }
         default:
-            PANIC("Should not happen!");
+            nax_panic("Should not happen!");
     }
 
-    PANIC("Should not happen!");
+    nax_panic("Should not happen!");
 }
 
 
@@ -543,10 +544,10 @@ Slice token_view(const char* source, Token token) {
         case TOKEN_EOF:      return SLICE("\0");
 
         case TOKEN_COUNT:
-            PANIC("Should not happen!");
+            nax_panic("Should not happen!");
     }
 
-    PANIC("Should not happen!");
+    nax_panic("Should not happen!");
 }
 
 
@@ -554,7 +555,7 @@ Slice token_view(const char* source, Token token) {
 
 
 static inline TokenizerError make_tokenizer_error(const char* source, const char* path, TokenOpt token) {
-    D_ASSERT(token_is_error(token.type));
+    nax_assert(token_is_error(token.type));
     return (TokenizerError) {
         .token=token,
         .source=source,

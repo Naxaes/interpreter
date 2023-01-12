@@ -1,10 +1,28 @@
 #pragma once
 
-#include "preamble.h"
+#include "c-preamble/nax_preamble.h"
 #include "slice.h"
 
 
+/* Things a table need:
+ *  1. Key type
+ *  2. Key compare function
+ *  3. Key hash function
+ *  4. Key empty value
+ *  5. Value type
+ *  6. Value compare function
+ *  7. Value empty value
+ *  8. Value tombstone value
+ *
+ * Optional values:
+ *  1. Load factor
+ *
+ */
+
+
+
 // ---------------- TABLE ----------------
+// https://www.dropbox.com/s/5wxmeffrm1i5zqw/Pycon2017CompactDictTalk.pdf?dl=0
 // Interesting hash functions:
 //      * http://www.cse.yorku.ca/~oz/hash.html
 //      * https://stackoverflow.com/a/57960443/6486738

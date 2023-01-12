@@ -1,6 +1,6 @@
 #pragma once
 
-#include "preamble.h"
+#include "c-preamble/nax_preamble.h"
 
 
 #define ALLOCATE(type)              ((type*) reallocate(0, 0, sizeof(type)))
@@ -20,7 +20,7 @@
 void* reallocate(void* pointer, size_t old_size, size_t new_size);
 
 
-bool is_power_of_two(uintptr_t n);
+//bool is_power_of_two(uintptr_t n);
 void* to_nearest_power_of_two(const void* data, uintptr_t alignment);
 
 

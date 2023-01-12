@@ -157,7 +157,7 @@ Error vm_run(const char* path, const char* source, bool quiet) {
 
 
     while (1) {
-//#ifdef VM_DEBUG_TRACE_EXECUTION
+#ifdef VM_DEBUG_TRACE_EXECUTION
         if (!quiet) {
             printf(">>         ");
             if (vm.stack >= vm.stack_top)
@@ -171,7 +171,7 @@ Error vm_run(const char* path, const char* source, bool quiet) {
             printf("\n>> ");
             chunk_instruction_disassemble(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code));
         }
-//#endif
+#endif
 
         u8 instruction;
         switch (instruction = READ_BYTE()) {

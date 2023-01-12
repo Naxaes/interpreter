@@ -1,6 +1,6 @@
 #pragma once
 
-#include "preamble.h"
+#include "c-preamble/nax_preamble.h"
 #include "slice.h"
 #include "array.h"
 #include "memory.h"
@@ -64,7 +64,7 @@ typedef enum {
     TOKEN_EOF,
     TOKEN_COUNT,
 } TokenType;
-STATIC_ASSERT(TOKEN_COUNT < 256, invariant);
+static_assert(TOKEN_COUNT < 256, "invariant");
 
 
 typedef struct {
@@ -73,7 +73,7 @@ typedef struct {
     u64 row    : 20;
     u64 column : 12;
 } Token;
-STATIC_ASSERT(sizeof(Token) == sizeof(Location), token_and_location_must_be_the_same);
+static_assert(sizeof(Token) == sizeof(Location), "Token and Location must be the same");
 
 Location token_location(Token token);
 

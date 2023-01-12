@@ -1,6 +1,7 @@
 #pragma once
 
-#include "preamble.h"
+#include "c-preamble/nax_preamble.h"
+#include "ast.h"
 
 typedef enum {
     OBJ_INVALID,
@@ -31,9 +32,10 @@ typedef struct {
         bool  val_bool;
         f64   val_f64;
         i64   val_i64;
+        u64   val_u64;
         Obj*  val_obj;
     } as;
-    ValueType type;
+    Type type;
 } Value;
 
 
@@ -50,17 +52,12 @@ Value impl_MAKE_OBJ(Obj* value);
 #define AS_I64(value)       ((value).as.val_i64)
 #define AS_OBJ(value)       ((value).as.val_obj)
 
-#define IS_INVALID(value) ((value).type == VALUE_INVALID)
-#define IS_NULL(value)    ((value).type == VALUE_NULL)
-#define IS_BOOL(value)    ((value).type == VALUE_BOOL)
-#define IS_F64(value)     ((value).type == VALUE_F64)
-#define IS_I64(value)     ((value).type == VALUE_I64)
-#define IS_OBJ(value)     ((value).type == VALUE_OBJ)
-
-#define IS_STRING(value)    is_obj_type(value, OBJ_STRING)
-#define IS_FUNCTION(value)  is_obj_type(value, OBJ_FUNCTION)
-#define IS_NATIVE(value)    is_obj_type(value, OBJ_NATIVE)
-
+#define IS_INVALID(value) (is_type((value).type, make_primitive_type(PrimitiveType_i64)))
+#define IS_NULL(value)    (is_type((value).type, make_primitive_type(PrimitiveType_null)))
+#define IS_BOOL(value)    (is_type((value).type, make_primitive_type(PrimitiveType_bool)))
+#define IS_F64(value)     (is_type((value).type, make_primitive_type(PrimitiveType_f64)))
+#define IS_I64(value)     (is_type((value).type, make_primitive_type(PrimitiveType_i64)))
+#define IS_OBJ(value)     (is_type((value).type, make_primitive_type(PrimitiveType_object)))
 
 void print_value(Value value);
 void print_type(Value value);
@@ -68,6 +65,4 @@ void print_type(Value value);
 const char* type_string(Value value);
 
 bool value_equals(Value a, Value b);
-
-bool is_obj_type(Value value, ObjType type);
 bool value_is_falsy(Value value);

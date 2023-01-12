@@ -8,7 +8,16 @@ set(WARNINGS "-Wall -Wextra -Wpedantic -Weverything -Wno-declaration-after-state
 set(DEBUG_FLAGS "-O0 -g -fsanitize=address -fsanitize=undefined -fno-omit-frame-pointer")
 set(FLAGS -O2)
 
-set(CMAKE_C_FLAGS "${WARNINGS} ${DEBUG_FLAGS}")
+
+
+if (CMAKE_BUILD_TYPE MATCHES Debug)
+    message("Compiling in debug...")
+    set(CMAKE_C_FLAGS "${WARNINGS} ${DEBUG_FLAGS}")
+elseif(CMAKE_BUILD_TYPE MATCHES Release)
+    message("Compiling in release...")
+    set(CMAKE_C_FLAGS "${WARNINGS} ${FLAGS}")
+endif ()
+
 
 add_executable(
     chain src/chain.c
@@ -27,7 +36,7 @@ add_executable(
     src/value.c
 )
 target_include_directories(chain PRIVATE src/)
-target_compile_definitions(chain PRIVATE -DVM_DEBUG_TRACE_EXECUTION -DDEBUG -DCOMPILER_OUTPUT_DISASSEMBLY)
+#target_compile_definitions(chain PRIVATE -DVM_DEBUG_TRACE_EXECUTION -DDEBUG -DCOMPILER_OUTPUT_DISASSEMBLY)
 
 add_executable(
     tests tests/main.c

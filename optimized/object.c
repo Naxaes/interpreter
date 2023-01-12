@@ -1,7 +1,6 @@
 #include "object.h"
-//#include "error.h"
 #include "memory.h"
-
+#include <stdlib.h>
 
 static Obj* make_obj(Obj* obj, ObjType type) { obj->type = type; return obj; }
 #define ALLOCATE_OBJ(class_, type) ((class_*) make_obj(malloc(sizeof(class_)), type))
@@ -12,7 +11,7 @@ void print_object(Obj* obj) {
         case OBJ_STRING:   print_string(AS_STRING(obj));     break;
         case OBJ_FUNCTION: print_function(AS_FUNCTION(obj)); break;
         case OBJ_NATIVE:   print_native(AS_NATIVE(obj));    break;
-//        case OBJ_INVALID:  error(INTERPRETER, "<INVALID>");
+        case OBJ_INVALID:  PANIC("<INVALID>");
     }
 }
 
@@ -40,7 +39,7 @@ void print_object_type(Obj* obj) {
         case OBJ_STRING:   printf("String");   break;
         case OBJ_FUNCTION: printf("Function"); break;
         case OBJ_NATIVE:   printf("Native");   break;
-//        case OBJ_INVALID:  error(INTERPRETER, "<INVALID>");
+        case OBJ_INVALID:  PANIC("<INVALID>");
     }
 }
 
@@ -49,7 +48,8 @@ const char* object_type_string(Obj* obj) {
         case OBJ_STRING:   return "String";
         case OBJ_FUNCTION: return "Function";
         case OBJ_NATIVE:   return "Native";
-//        case OBJ_INVALID:  error(INTERPRETER, "<INVALID>");
+        case OBJ_INVALID:  PANIC("<INVALID>");
+        unreachable();
     }
 }
 
@@ -70,7 +70,7 @@ void object_free(Obj* obj) {
             FREE(ObjNative, obj);
             break;
         }
-//        case OBJ_INVALID:  error(INTERPRETER, "<INVALID>");
+        case OBJ_INVALID: PANIC("<INVALID>");
     }
 }
 
@@ -87,8 +87,8 @@ bool objects_equals(Obj* a, Obj* b) {
         }
         case OBJ_FUNCTION:
         case OBJ_NATIVE:  return a == b;
-//        case OBJ_INVALID:
-//            error(INTERPRETER, "Objects a and b are invalid");
+        case OBJ_INVALID: PANIC("<INVALID>");
+        unreachable();
     }
 }
 

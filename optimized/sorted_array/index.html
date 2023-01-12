@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html"
+      xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html" xmlns="http://www.w3.org/1999/html">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://use.fontawesome.com/c301710f3d.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Slab&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=League+Spartan:wght@200;300&family=Roboto+Slab&display=swap" rel="stylesheet">
+
+    <title>Online röstning</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css?family=Noto+Sans:400,400i,700,700i&subset=greek-ext');
+
+        @font-face {
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(to right, #FEFEFE, #FAFAFA);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            padding: 0;
+            margin: 0 12%;
+            font-family: 'Noto Sans', sans-serif;
+        }
+
+        #header h1 {
+            padding: 12px 0;
+            font-size: 400%;
+        }
+
+        #partier {
+            width: 100%;
+        }
+
+        #partier .cards {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            width: 100%;
+        }
+
+        .column {
+            width: 160px;
+            height: 160px;
+            border-radius: 8px;
+            padding: 32px;
+        }
+
+        .column img {
+            vertical-align:top;
+            width:100%;
+            height: 100%;
+            border-radius: 8px;
+        }
+
+        .column .image {
+            position:relative;
+            width: 100%;
+            height: 100%;
+            border-radius: 8px;
+            box-shadow: 10px 10px #EEEEEE
+        }
+
+        /* Overlay */
+        .column .image:after {
+            position:absolute;
+            opacity:0;
+            transition: all 0.5s;
+            -webkit-transition: all 0.5s;
+
+            content: '\A';
+            width:   100%;
+            height:  100%;
+            top:  0;
+            left: 0;
+            background: rgba(0,0,0,0.6);
+            box-shadow: 0 8px 16px 0 rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+        }
+        .column .image:hover:after {
+            opacity:1;
+        }
+
+        .column .image-text {
+            position: absolute;
+            visibility: visible;
+
+            color: white;
+            text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000;
+
+            opacity: 0;
+
+            font-weight: 300;
+            font-size: 1rem;
+            text-align: center;
+
+            transition: all 0.5s;
+            -webkit-transition: all 0.5s;
+        }
+        .column .image:hover .image-text {
+            margin-top: 0;
+            opacity: 1;
+            visibility: visible;
+            z-index: 1;
+        }
+
+
+        #form {
+            width: 100%;
+            padding: 64px 0;
+            display: flex;
+            justify-content: center;
+            background-color: #DDDDDD;
+            border-radius: 8px;
+        }
+
+        #form .form__input {
+            font-family: 'Roboto', sans-serif;
+            color: #333;
+            font-size: 1.2rem;
+            margin: 0 32px;
+            padding: 1.5rem 2rem;
+            border-radius: 0.2rem;
+            background-color: rgb(255, 255, 255);
+            border: none;
+            width: 50%;
+            display: block;
+            border-bottom: 0.3rem solid transparent;
+            transition: all 0.3s;
+        }
+
+
+        .button-25 {
+            font-family: 'Roboto', sans-serif;
+            background-color: #36A9AE;
+            background-image: linear-gradient(#37ADB2, #329CA0);
+            border: 1px solid #2A8387;
+            border-radius: 4px;
+            box-shadow: rgba(0, 0, 0, 0.12) 0 1px 1px;
+            color: #FFFFFF;
+            cursor: pointer;
+            display: block;
+            font-family: -apple-system,".SFNSDisplay-Regular","Helvetica Neue",Helvetica,Arial,sans-serif;
+            font-size: 1.2rem;
+            line-height: 100%;
+            margin: 0;
+            outline: 0;
+            padding: 11px 15px 12px;
+            text-align: center;
+            transition: box-shadow .05s ease-in-out,opacity .05s ease-in-out;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            width: 128px;
+        }
+
+        .button-25:hover {
+            box-shadow: rgba(255, 255, 255, 0.3) 0 0 2px inset, rgba(0, 0, 0, 0.4) 0 1px 2px;
+            text-decoration: none;
+            transition-duration: .15s, .15s;
+        }
+
+        .button-25:active {
+            box-shadow: rgba(0, 0, 0, 0.15) 0 2px 4px inset, rgba(0, 0, 0, 0.4) 0 1px 1px;
+        }
+
+        .button-25:disabled {
+            cursor: not-allowed;
+            opacity: .6;
+        }
+
+        .button-25:disabled:active {
+            pointer-events: none;
+        }
+
+        .button-25:disabled:hover {
+            box-shadow: none;
+        }
+
+
+        .square_box {
+            position: absolute;
+            -webkit-transform: rotate(45deg);
+            -ms-transform: rotate(45deg);
+            transform: rotate(45deg);
+            border-top-left-radius: 45px;
+            opacity: 0.302;
+            z-index: -1;
+        }
+
+        .square_box.box_three {
+            background-image: -moz-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            background-image: -webkit-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            background-image: -ms-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            opacity: 0.059;
+            left: -80px;
+            top: -60px;
+            width: 500px;
+            height: 500px;
+            border-radius: 45px;
+            z-index: -1;
+        }
+
+        .square_box.box_four {
+            background-image: -moz-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            background-image: -webkit-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            background-image: -ms-linear-gradient(-90deg, #290a59 0%, #3d57f4 100%);
+            opacity: 0.059;
+            left: 150px;
+            top: -25px;
+            width: 550px;
+            height: 550px;
+            border-radius: 45px;
+            z-index: -1;
+        }
+
+
+        #toast {
+            visibility: hidden;
+            max-width: 50px;
+            height: 50px;
+            /*margin-left: -125px;*/
+            margin: auto;
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            border-radius: 2px;
+
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            right:0;
+            bottom: 30px;
+            font-size: 17px;
+            white-space: nowrap;
+        }
+        #toast #img{
+            width: 50px;
+            height: 100%;
+
+            float: left;
+
+            padding-top: 16px;
+            padding-bottom: 16px;
+
+            box-sizing: border-box;
+
+
+            background-color: #111;
+            color: #fff;
+        }
+        #toast #desc{
+            color: #fff;
+
+            padding: 16px;
+
+            overflow: visible;
+            white-space: normal;
+        }
+
+        #toast.show {
+            text-align: center;
+            visibility: visible;
+            -webkit-animation: fadein 0.5s, expand 0.5s 0.5s, stay 3s 1s, shrink 0.5s 2s, fadeout 0.5s 2.5s;
+            animation:         fadein 0.5s, expand 0.5s 0.5s, stay 3s 1s, shrink 0.5s 4s, fadeout 0.5s 4.5s;
+        }
+
+        @-webkit-keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @keyframes fadein {
+            from {bottom: 0; opacity: 0;}
+            to {bottom: 30px; opacity: 1;}
+        }
+
+        @-webkit-keyframes expand {
+            from {min-width: 50px}
+            to {min-width: 75%}
+        }
+
+        @keyframes expand {
+            from {min-width: 50px}
+            to {min-width: 75%}
+        }
+        @-webkit-keyframes stay {
+            from {min-width: 75%}
+            to {min-width: 75%}
+        }
+
+        @keyframes stay {
+            from {min-width: 75%}
+            to {min-width: 75%}
+        }
+        @-webkit-keyframes shrink {
+            from {min-width: 75%}
+            to {min-width: 50px}
+        }
+
+        @keyframes shrink {
+            from {min-width: 75%}
+            to {min-width: 50px}
+        }
+
+        @-webkit-keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 60px; opacity: 0;}
+        }
+
+        @keyframes fadeout {
+            from {bottom: 30px; opacity: 1;}
+            to {bottom: 60px; opacity: 0;}
+        }
+
+
+        @media screen and (max-width: 1200px) {
+            .column {
+                width: 128px;
+                height: 128px;
+            }
+            #header h1 {
+                padding: 24px 0;
+                font-size: 300%;
+            }
+            #header h2 {
+                font-size: 200%;
+            }
+            #form {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                text-align: center;
+                margin: 32px 0;
+                padding: 10px;
+            }
+            #form .form__input {
+                font-size: 1.0rem;
+                padding: 1.0rem 1.5rem;
+                margin: 12px 12px;
+                width: auto;
+                text-align: center;
+            }
+            .button-25 {
+                width: auto;
+                margin: 12px 12px;
+            }
+            #toast {
+                font-size: 14px;
+                height: 64px;
+            }
+            #toast #desc {
+                padding: 8px;
+            }
+        }
+        @media screen and (max-width: 800px) {
+            .column {
+                width: 64px;
+                height: 64px;
+            }
+            #header h1 {
+                padding: 12px 0;
+                font-size: 200%;
+            }
+            #header h2 {
+                font-size: 100%;
+            }
+            #form {
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                text-align: center;
+                margin: 32px 0;
+                padding: 10px;
+            }
+            #form .form__input {
+                font-size: 0.8rem;
+                padding: 1.0rem 1.5rem;
+                margin: 12px 12px;
+                width: auto;
+                text-align: center;
+            }
+            .button-25 {
+                width: auto;
+                margin: 12px 12px;
+            }
+            #toast {
+                font-size: 11px;
+                height: 64px;
+            }
+            #toast #desc {
+                padding: 8px;
+            }
+        }
+
+    </style>
+
+
+    <script>
+        var attempts = 0;
+        let prompts = [
+            "Att rösta är viktigt, men så är också att tänka. Kanske värt att ge det ett till försök?",
+            "Vi har en representativ demokrati, men det vore bra om vi kunde representera smartare personer...",
+            "Ej, vet du vad... Alla bör inte få rösta.",
+        ]
+
+
+        function add_vote(x) {
+            console.log(x);
+            let entry = document.getElementById("name")
+            entry.value = x.innerText;
+        }
+
+        function launch_toast() {
+            let toast = document.getElementById("toast")
+            toast.className = "show";
+
+            let desc = document.getElementById("desc")
+            desc.innerText = prompts[attempts];
+            attempts += 1;
+
+            let button = document.getElementById("vote");
+            button.disabled = "disabled";
+
+            setTimeout(function(){ toast.className = toast.className.replace("show", ""); }, 5000);
+            if (attempts < prompts.length) {
+                setTimeout(function(){ button.disabled = ""; }, 5000);
+            } else {
+                button.innerText = "❌";
+            }
+
+        }
+    </script>
+
+</head>
+<body>
+
+<div id="header">
+    <h1>Rösta online idag!</h1>
+    <h2>Att rösta är en mänsklig rättighet i en demokrati, så det är viktigt att alla har tillgängligheten att enkelt och säkert rösta ifrån sitt hem. Gör din påverkan och bidra med dina åsikter till ett bättre samhälle!</h2>
+</div>
+
+<div id="partier">
+
+    <div class="cards" id="card-section">
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/er4fw1a2219ocputfn6y/logo-s-large.jpg" alt="Socialdemokraternas logotyp">
+                    <div class="image-text">
+                        <p>Socialdemokraterna</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/x92sglqf7u7hukjl1b5t/logo-m-large.jpg" alt="Moderaternas logotyp">
+                    <div class="image-text">
+                        <p>Moderaterna</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/xqhuo0r6r541y5vuehim/logo-sd-large.jpg" alt="Sverigedemokraternas logotyp">
+                    <div class="image-text">
+                        <p>Sverigedemokraterna</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card" onclick="">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/dkwjvy132wai5mhwlids/Centerpartiet_logo_symbol_pos-320x320-luft.jpg" alt="Centerpartiets logotyp">
+                    <div class="image-text">
+                        <p>Centerpartiet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/hnrmpvmv0u0fwyi3p1ib/logo-v-large.jpg" alt="Vänsterpartiets logotyp">
+                    <div class="image-text">
+                        <p>Vänsterpartiet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/6qmuaram0iigfrdeyx65/logo-kd-large.jpg" alt="Kristdemokraternas logotyp">
+                    <div class="image-text">
+                        <p>Kristdemokraterna</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/rrab52c9vrc5ql70uw1u/logo-l-large-ny3.jpg" alt="Liberalernas logotyp">
+                    <div class="image-text">
+                        <p>Liberalerna</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="column" onclick="add_vote(this)">
+            <div class="card">
+                <div class="image">
+                    <img src="https://www.riksdagen.se/imagevault/publishedmedia/12g4g4q68jc7lzhnqtpm/logo-mp-large.jpg" alt="Miljöpartiets logotyp">
+                    <div class="image-text">
+                        <p>Miljöpartiet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+
+
+
+<div id="form">
+    <input type="text" class="form__input" id="name" placeholder="Vem röstar du på?" required="" />
+    <label id="vote_label" for="name"></label>
+    <button id="vote" class="button-25" role="button" onclick="launch_toast()">Rösta</button>
+
+</div>
+
+
+<div id="toast">
+    <div id="img"><div class="icon"><i class="fa fa-comments" aria-hidden="true"></i></div></div>
+    <div id="desc"></div>
+</div>
+
+
+
+<section>
+    <div class="square_box box_three"></div>
+    <div class="square_box box_four"></div>
+</section>
+
+
+
+
+
+</body>
+</html>
+

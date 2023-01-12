@@ -1,5 +1,5 @@
 #pragma once
-#include "preamble.h"
+#include "c-preamble/nax_preamble.h"
 #include "value.h"
 #include "location.h"
 #include "array.h"
@@ -13,7 +13,7 @@ declare_dynarray(Location)
 
 /* A runtime object. */
 typedef struct {
-    /* Literals, objects, and run-time identifier strings */
+    /* Literals, objects, functions and run-time identifier strings */
     DynArray_Value    constants;
     DynArray_u8       code;
     DynArray_Location locations;

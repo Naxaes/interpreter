@@ -1,13 +1,51 @@
----- Things to know -----
+Very interesting: https://docs.rs/egg/latest/egg/tutorials/_01_background/index.html
+
+---- Things -----
 * All imports must be at the top of the file.
     This way, the compiler can read the first few lines of a
     module and then fire of threads that recursively do the same
     until they encounter a module without any imports. Once
     it's found it, it'll start compile and recurse back.
 
+* Make comments verified.
+    Python has docstrings that can be evaluated. We should
+    implement a VCS that verifies that all comments within
+    an area of change is still valid by requesting the
+    programmer for an affirmation or a TODO. Make sure that
+    this tool is not compiler dependent, but can be created
+    from the language itself.
+
+* Live coding.
+    On error, save the stack up until the frame that crashed,
+    and all allocated data. Then, the programmer can fix the
+    function, recompile, and resume from where the error
+    happened. This won't work for mutable globals and parameters.
+
+
+* Use extended types for maximum efficiency and robustness:
+    https://youtu.be/ieERUEhs910?t=1320
+    And use the restrict keyword.
+    Also, interesting:
+    The indexing of 2 (or more) dimensional arrays at 49:58 can still use multiple brackets if you use some typecasting voodoo and tell the compiler that it's a higher dimension array:
+
+    void example ( int *a , int *b , const int X , const int Y , int number )
+    {
+      int (* a_array ) [ X ] = ( int (*) [ X ]) a ;
+      int (* b_array ) [ X ] = ( int (*) [ X ]) b ;
+
+
+      for ( int j =0; j < Y ; j ++) {
+        for ( int i =0; i < X ; i ++) {
+          b_array [ j ][ i ] = a_array [ j ][ i ] + number ;
+        }
+      }
+    }
+
+    You'll need to know the dimension size of the inner dimensions in the typecast, but it will allow you to avoid the a[i*X+j] calculations.
 
 
 
+X macros
 
 https://dyncall.org/
 
@@ -15,9 +53,13 @@ References:
     * https://craftinginterpreters.com/contents.html
 
 
+Could probably optimize modulus with this: https://youtu.be/UDQjn_-pDSs?t=561
+
+
+
 ---- Names? ----
 Jolt / Bolt / Zolt
-Ion
+Ion / Iron
 Coal
 Tex / Tez
 Pie
@@ -420,3 +462,279 @@ restrict the programmer to a maximum of 105 scopes.
 ....
 
 16 scopes requires = 1+2+3+4+5+6+7+8+9+10+11+12+13+14 = 105 => 8 bits.
+
+
+When to inline:
+    1. Function is only called once.
+    2. Inlining will execute fewer instructions than not inlining.
+        Calling an empty function requires:
+            1. Push return address.
+            2. Jump to function.
+            3. Push return size.
+            4. Pop return address.
+            5. Jump to return address.
+        So anything with less than 5 instructions might be worth inlining.
+        However, this will increase binary size...
+
+
+
+----- Source code ----
+fn sum(a, b, c) {
+    return a + b + c;
+}
+
+fn main() {
+    var start = clock();
+    print(4);
+    print(sum(5, 6, 7));
+    return start;
+}
+
+var start = main();
+print(clock() - start);
+
+----- Execution [Entry = 1500] ----
+==== <script> ====
+>>         [ ]
+>> 1500    | CALL                 0 (addr:1001)  'main'
+>>         [ 0.343237 ]
+>> 1501    | CALL_NATIVE          0 (native-fn)  'clock'
+>>         [ 0.343237 ][ 0.652353 ]
+>> 1502      OP_GET_LOCAL         0    '0.343237' f64
+>>         [ 0.343237 ][ 0.652353 ][ 0.343237 ]
+>> 1503    | OP_SUB
+>>         [ 0.343237 ][ 0.309116 ]
+>> 1504      OP_CONSTANT          0    '1' i64
+>>         [ 0.343237 ][ 0.309116 ][ 1 ]
+>> 1505    | CALL_NATIVE          1 (native-fn)  'print'
+0.309116
+>>         [ 0.343237 ]
+>> 1506     EXIT
+
+
+==== <main> ====
+>>         [ addr:1501 ]
+>> 1001    | CALL_NATIVE          0 (native-fn)  'clock'
+>>         [ addr:1501 ][ 0.343237 ]
+>> 1002      OP_CONSTANT          0    '4' i64
+>>         [ addr:1501 ][ 0.343237 ][ 4 ]
+>> 1003      OP_CONSTANT          1    '1' i64
+>>         [ addr:1501 ][ 0.343237 ][ 4 ][ 1 ]
+>> 1004    | CALL_NATIVE          1 (native-fn)  'print'
+4
+>>         [ addr:1501 ][ 0.343237 ]
+>> 1005    | OP_CONSTANT          2    '5' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ]
+>> 1006    | OP_CONSTANT          3    '6' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ]
+>> 1007    | OP_CONSTANT          4    '7' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ]
+>> 1008    | CALL                 1 (addr:0100)  'sum'
+>>         [ addr:1501 ][ 0.343237 ][ 18 ]
+>> 1009      OP_CONSTANT          1    '1' i64
+>>         [ addr:1501 ][ 0.343237 ][ 18 ][ 1 ]
+>> 1010    | CALL_NATIVE          1 (native-fn)  'print'
+18
+>>         [ addr:1501 ][ 0.343237 ]
+>> 1012    | OP_CONSTANT          5    '1' i64
+>>         [ addr:1501 ][ 0.343237 ][ 1 ]
+>> 1013    | OP_RETURN
+
+
+==== <sum> ====
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ]
+>> 0100      OP_GET_LOCAL         0    '5' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 5 ]
+>> 0101      OP_GET_LOCAL         1    '6' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 5 ][ 6 ]
+>> 0102    | OP_ADD
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 11 ]
+>> 0103      OP_GET_LOCAL         2    '7' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 11 ][ 7 ]
+>> 0104    | OP_ADD
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 18 ]
+>> 1012    | OP_CONSTANT          0    '1' i64
+>>         [ addr:1501 ][ 0.343237 ][ 5 ][ 6 ][ 7 ][ addr:1009 ][ 18 ][ 1 ]
+>> 0105    | OP_RETURN
+
+
+
+
+
+
+
+// ---- Execution of functions.
+>>         [ <script> ]
+>> 0000:0003 OP_CONSTANT          1    '<fn sum>' Function
+>>         [ <script> ][ <fn sum> ]
+>> 0002    | OP_DEFINE_GLOBAL     0    'sum' Identifier
+>>         [ <script> ]
+>> 0004:0011 OP_CONSTANT          3    '<fn sum_and_return>' Function
+>>         [ <script> ][ <fn sum_and_return> ]
+>> 0006    | OP_DEFINE_GLOBAL     2    'sum_and_return' Identifier
+>>         [ <script> ]
+>> 0008:0024 OP_CONSTANT          5    '<fn main>' Function
+>>         [ <script> ][ <fn main> ]
+>> 0010    | OP_DEFINE_GLOBAL     4    'main' Identifier
+>>         [ <script> ]
+>> 0012:0026 OP_GET_GLOBAL        6    'main' Identifier
+>>         [ <script> ][ <fn main> ]
+>> 0014    | OP_CALL              0
+>>         [ <script> ][ <fn main> ]
+>> 0000:0015 OP_GET_GLOBAL        0    'clock' Identifier
+>>         [ <script> ][ <fn main> ][ <native fn> ]
+>> 0002    | OP_CALL              0
+>>         [ <script> ][ <fn main> ][ 0.343237 ]
+>> 0004:0017 OP_CONSTANT          1    '4' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 4 ]
+>> 0006    | OP_PRINT
+4
+>>         [ <script> ][ <fn main> ][ 0.343237 ]
+>> 0007:0018 OP_GET_GLOBAL        2    'sum' Identifier
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ]
+>> 0009    | OP_CONSTANT          3    '5' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ]
+>> 0011    | OP_CONSTANT          4    '6' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ]
+>> 0013    | OP_CONSTANT          5    '7' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ]
+>> 0015    | OP_CALL              3 (arg-count)
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ]
+>> 0000:0002 OP_GET_LOCAL         1
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ 5 ]
+>> 0002    | OP_GET_LOCAL         2
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ 5 ][ 6 ]
+>> 0004    | OP_ADD
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ 11 ]
+>> 0005    | OP_GET_LOCAL         3
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ 11 ][ 7 ]
+>> 0007    | OP_ADD
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ 18 ]
+>> 0008    | OP_PRINT
+18
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ]
+>> 0009:0003 OP_NULL
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum> ][ 5 ][ 6 ][ 7 ][ null ]
+>> 0010    | OP_RETURN
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ null ]
+>> 0017    | OP_PRINT
+null
+>>         [ <script> ][ <fn main> ][ 0.343237 ]
+>> 0018:0019 OP_GET_GLOBAL        6    'sum_and_return' Identifier
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ]
+>> 0020    | OP_CONSTANT          7    '1' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ]
+>> 0022    | OP_CONSTANT          8    '2' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ]
+>> 0024    | OP_CONSTANT          9    '3' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ]
+>> 0026    | OP_CALL              3
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ]
+>> 0000:0009 OP_CONSTANT          0    '<fn test>' Function
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ]
+>> 0002:0010 OP_GET_LOCAL         1
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 1 ]
+>> 0004    | OP_GET_LOCAL         2
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 1 ][ 2 ]
+>> 0006    | OP_ADD
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ]
+>> 0007    | OP_GET_LOCAL         4
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ]
+>> 0009    | OP_GET_LOCAL         3
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ]
+>> 0011    | OP_CALL              1
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ]
+>> 0000:0008 OP_CONSTANT          0    '1' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ][ 1 ]
+>> 0002    | OP_GET_LOCAL         1
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ][ 1 ][ 3 ]
+>> 0004    | OP_ADD
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ][ 4 ]
+>> 0005    | OP_CONSTANT          1    '1' i64
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ][ 4 ][ 1 ]
+>> 0007    | OP_SUBTRACT
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ <fn test> ][ 3 ][ 3 ]
+>> 0008    | OP_RETURN
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 3 ][ 3 ]
+>> 0013    | OP_ADD
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <fn sum_and_return> ][ 1 ][ 2 ][ 3 ][ <fn test> ][ 6 ]
+>> 0014    | OP_RETURN
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 6 ]
+>> 0028    | OP_PRINT
+6
+>>         [ <script> ][ <fn main> ][ 0.343237 ]
+>> 0029:0021 OP_GET_GLOBAL        10   'clock' Identifier
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ <native fn> ]
+>> 0031    | OP_CALL              0
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ]
+>> 0033:0023 OP_GET_LOCAL         1
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ][ 0.343237 ]
+>> 0035    | OP_GET_LOCAL         2
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ][ 0.343237 ][ 0.34359 ]
+>> 0037    | OP_SUBTRACT
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ][ -0.000353 ]
+>> 0038    | OP_PRINT
+-0.000353
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ]
+>> 0039:0024 OP_NULL
+>>         [ <script> ][ <fn main> ][ 0.343237 ][ 0.34359 ][ null ]
+>> 0040    | OP_RETURN
+>>         [ <script> ][ null ]
+>> 0016    | OP_POP
+>>         [ <script> ]
+>> 0017    | OP_EXIT
+
+
+
+
+
+
+
+
+
+
+
+
+
+There exist a global stack of allocators.
+
+    UnionTaggedAllocator allocators[] {
+        Mallocator {},
+    };
+    static_assert(
+        sizeof(UnionTaggedAllocator) >= CACHE_LINE_SIZE,
+        "Allocators exhibits potential false sharing!"
+    );
+    static_assert(
+        array_count(allocators) <= 0xFF,
+        "Allocators can't be indexed by an u8!"
+    );
+
+    NOTE: u8 is 256 and cache-line is 64 which gives us 256/64
+          allocators. That's not enough. A u16 gives us
+          65356/64 = 1024, which is enough. Although, some
+          allocators could be stacked tighter than cache-line
+          size.
+
+    NOTE: All allocators can be pushed tihghtly into the stack
+          as long as no threads are created. If we require a
+          allocator to be pushed when a thread is created, we
+          can make sure to align it to the cache-line.
+
+    Usage:
+
+        typedef struct {
+            u8* data;
+            u8  occupied;
+            u8  count;
+            u8  capacity;
+            u8  allocator;
+        } SmallTable;
+
+        typedef struct {
+            u8* data;
+            u32 occupied;
+            u32 count;
+            u32 capacity;
+            u8  allocator;
+        } Table;

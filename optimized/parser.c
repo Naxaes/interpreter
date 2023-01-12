@@ -1,4 +1,6 @@
 #include "parser.h"
+#include "nax_logging/nax_logging.h"
+#include <stdlib.h>
 
 
 const char* ERROR_MESSAGE[] = {
@@ -127,15 +129,13 @@ Parser make_parser(const char* source, const char* path, Array_Token tokens, Sta
             .location          = make_location(0, 1, 0),
             .tokens            = tokens,
             .token_it          = 0,
-            .declarations      = table_ast_make(),
-            .variables         = table_variable_make(),
+            .variables         = make_dynarray_Slice(),
+            .variable_cache    = table_variable_make(),
+            .name_count_for_current_depth = 0,
             .types             = table_type_make(),
             .string_map        = table_u32_make(),
-            .names             = make_array_Slice(malloc(1024 * sizeof(Slice)), 1024),
-            .name_count        = 0,
-            .strings           = make_array_Slice(malloc(1024 * sizeof(Slice)), 1024),
-            .string_count      = 0,
-            .scope_depth       = 0,
+            .strings           = make_dynarray_Slice(),
+            .depth              = 0,
             .buffer            = buffer,
             .look_ahead_buffer = make_stack(malloc(4096), 4096),
             .error_count       = 0,
@@ -206,22 +206,28 @@ Ast_Identifier identifier(Parser* parser, ErrorCode code) {
 
     Slice view = token_view(parser->source, token);
     Ast_Identifier previous;
-    if (table_variable_get(&parser->variables, view, &previous)) {
-        if (previous.depth != parser->scope_depth) {
-            previous.depth = parser->scope_depth;
-            previous.flags = 0;
+    if (table_variable_get(&parser->variable_cache, view, &previous)) {
+        if (previous.scope_depth != parser->depth) {
+            Ast_Identifier new_identifier = make_identifier(
+                token_location(token),
+                (u16) parser->variables.count,
+                (u16) parser->name_count_for_current_depth++,
+                (u16) parser->depth
+            );
+            dynarray_Slice_append(&parser->variables, view);
+            return new_identifier;
         }
         return previous;
     } else {
-        Ast_Identifier node = make_identifier(
+        Ast_Identifier new_identifier = make_identifier(
                 token_location(token),
-                (u16) parser->name_count,
-                parser->scope_depth,
-                0
+                (u16) parser->variables.count,
+                (u16) parser->name_count_for_current_depth++,
+                (u16) parser->depth
         );
-        array_Slice_set(&parser->names, parser->name_count++, view);
-        ASSERT(table_variable_add(&parser->variables, view, node));
-        return node;
+        dynarray_Slice_append(&parser->variables, view);
+        ASSERT(table_variable_add(&parser->variable_cache, view, new_identifier));
+        return new_identifier;
     }
 }
 
@@ -239,13 +245,14 @@ Type type(Parser* parser, ErrorCode code) {
     } else {
         PrimitiveType primitive = get_primitive(view);
 
-        if (primitive != PRIMITIVE_TYPE_User) {
+        if (primitive != PrimitiveType_user_defined) {
             Type node = make_primitive_type(primitive);
             return node;
         } else {
-            Type node = make_user_type(parser->name_count);
-            array_Slice_set(&parser->names, parser->name_count++, view);
-            ASSERT(table_type_add(&parser->types, view, node));
+            // @TODO: Should types be scoped?
+            Type node = make_user_type(0 /*parser->name_count*/);
+//            array_Slice_set(&parser->names, parser->name_count++, view);
+//            ASSERT(table_type_add(&parser->types, view, node));
             return node;
         }
     }
@@ -264,17 +271,17 @@ Ast_Literal literal(Parser* parser, ErrorCode code) {
     switch (token.type) {
         case TOKEN_I64: {
             value = (union Value) { .int_ = strtoll(view.source,  NULL, 10) };
-            type = PRIMITIVE_TYPE_i64;
+            type = PrimitiveType_i64;
             break;
         }
         case TOKEN_U64: {
             value = (union Value) { .uint_ = strtoull(view.source, NULL, 10) };
-            type = PRIMITIVE_TYPE_u64;
+            type = PrimitiveType_u64;
             break;
         }
         case TOKEN_F64: {
             value = (union Value) { .float_ = strtod(view.source,   NULL) };
-            type = PRIMITIVE_TYPE_f64;
+            type = PrimitiveType_f64;
             break;
         }
         case TOKEN_STRING: {
@@ -282,22 +289,22 @@ Ast_Literal literal(Parser* parser, ErrorCode code) {
             if (table_u32_get(&parser->string_map, view, &previous)) {
                 value = (union Value) { .string = previous };
             } else {
-                int index = parser->string_count++;
+                u32 index = parser->strings.count;
                 value = (union Value) { .string = index };
                 ASSERT(table_u32_add(&parser->string_map, view, index));
-                array_Slice_set(&parser->strings, index, view);
+                dynarray_Slice_append(&parser->strings, view);
             }
-            type = PRIMITIVE_TYPE_string;
+            type = PrimitiveType_string;
             break;
         }
         default:
-            PANIC("Should not happen! '%d'", token.type);
+            nax_panic("Should not happen! '%d'", token.type);
     }
 
     Ast_Literal node = make_literal(
-            token_location(token),
-            type,
-            value
+        token_location(token),
+        type,
+        value
     );
 
     return node;
@@ -336,7 +343,7 @@ Ast* factor(Parser* parser, StackAllocator* buffer) {
     Token token = peek_token(parser);
     switch (token.type) {
         case TOKEN_LEFT_PAREN: {
-            token = next_token(parser);
+            next_token(parser);
             Ast* node = expression(parser);
             consume(parser, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_GROUPING);
             return node;
@@ -358,7 +365,7 @@ Ast* factor(Parser* parser, StackAllocator* buffer) {
             return stack_push(buffer, Ast_Literal, n);
         }
         default:
-            return NULL;
+            nax_panic("Unexpected token");
     }
 }
 Ast* product(Parser* parser) {
@@ -377,12 +384,12 @@ Ast* product(Parser* parser) {
         next_token(parser);
 
         Ast* right = factor(parser, &parser->look_ahead_buffer);
-        int offset = (int) ((u8*) right - (u8*) node);
 
         Ast_BinOp bin_op = make_bin_op(
             token_location(token),
             op,
-            offset
+            node, right,
+            PrimitiveType_inferred
         );
         prepend(parser, bin_op, snapshot);
     }
@@ -402,12 +409,12 @@ Ast* term(Parser* parser) {
         next_token(parser);
 
         Ast* right = product(parser);
-        int offset = (int) ((u8*) right - (u8*) node);
 
         Ast_BinOp bin_op = make_bin_op(
             token_location(token),
             op,
-            offset
+            node, right,
+            PrimitiveType_inferred
         );
         prepend(parser, bin_op, snapshot);
     }
@@ -431,12 +438,12 @@ Ast* relation(Parser* parser) {
         next_token(parser);
 
         Ast* right = term(parser);
-        int offset = (int) ((u8*) right - (u8*) node);
 
         Ast_BinOp bin_op = make_bin_op(
             token_location(token),
             op,
-            offset
+            node, right,
+            PrimitiveType_inferred
         );
         prepend(parser, bin_op, snapshot);
     }
@@ -455,12 +462,12 @@ Ast* and(Parser* parser) {
         next_token(parser);
 
         Ast* right = relation(parser);
-        int offset = (int) ((u8*) right - (u8*) node);
 
         Ast_BinOp bin_op = make_bin_op(
             token_location(token),
             op,
-            offset
+            node, right,
+            PrimitiveType_inferred
         );
         prepend(parser, bin_op, snapshot);
     }
@@ -479,21 +486,22 @@ Ast* or(Parser* parser) {
         next_token(parser);
 
         Ast* right = and(parser);
-        int offset = (int) ((u8*) right - (u8*) node);
 
         Ast_BinOp bin_op = make_bin_op(
             token_location(token),
             op,
-            offset
+            node, right,
+            PrimitiveType_inferred
         );
         prepend(parser, bin_op, snapshot);
     }
 }
 Ast* expression(Parser* parser) {
-    StackAllocator snapshot = parser->look_ahead_buffer;
     Ast* node = or(parser);
     return node;
 }
+
+/* Should be called from statements, not expressions. */
 Ast* expression_start(Parser* parser) {
     Ast* node = or(parser);
     if (parser->look_ahead_buffer.ptr != 0) {
@@ -508,9 +516,13 @@ Ast* expression_start(Parser* parser) {
 
 
 Ast_Block* block(Parser* parser) {
+    u32 previous_name_count_for_current_depth = parser->name_count_for_current_depth;
+    parser->name_count_for_current_depth = 0;
+    parser->depth += 1;
+
     Token token = consume(parser, TOKEN_LEFT_BRACE, COMPILE_ERROR_EXPECTED_BRACE_BEFORE_BODY);
 
-    Ast_Block  n     = make_block(token_location(token), 0);
+    Ast_Block  n     = make_block(token_location(token), 0, 0);
     Ast_Block* block = stack_push(&parser->buffer, Ast_Block, n);
 
     u32 stmt_count = 0;
@@ -524,6 +536,10 @@ Ast_Block* block(Parser* parser) {
     consume(parser, TOKEN_RIGHT_BRACE, COMPILE_ERROR_EXPECTED_BRACE_AFTER_BLOCK);
 
     block->stmt_count = stmt_count;
+    block->end = (Ast*)parser->buffer.data - (Ast*) block;
+
+    parser->name_count_for_current_depth = previous_name_count_for_current_depth;
+    parser->depth -= 1;
 
     return block;
 }
@@ -549,7 +565,7 @@ Ast_VarDecl* var_decl(Parser* parser) {
     Ast_VarDecl  n    = make_var_decl(token_location(var), name);
     Ast_VarDecl* node = stack_push(&parser->buffer, Ast_VarDecl, n);
 
-    Type type = make_primitive_type(PRIMITIVE_TYPE_inferred);
+    Type type = make_primitive_type(PrimitiveType_inferred);
 
     consume(parser, TOKEN_EQUAL, COMPILE_ERROR_EXPECTED_EQUAL_AFTER_VAR_DECL);
     expression_start(parser);
@@ -562,9 +578,9 @@ Ast_FuncDecl* func_decl(Parser* parser) {
     Token var = consume(parser, TOKEN_FUN, INTERNAL_ERROR);
 
     Ast_Identifier name = identifier(parser, COMPILE_ERROR_EXPECTED_FUNCTION_NAME);
-    Type type = make_primitive_type(PRIMITIVE_TYPE_inferred);
+    Type type = make_primitive_type(PrimitiveType_inferred);
 
-    Ast_FuncDecl  n    = make_func_decl(token_location(var), name, 0, type);
+    Ast_FuncDecl  n    = make_func_decl(token_location(var), name, 0, type, 0);
     Ast_FuncDecl* node = stack_push(&parser->buffer, Ast_FuncDecl, n);
 
 //    if (peek_token(parser).type == TOKEN_ARROW) {
@@ -591,7 +607,10 @@ Ast_FuncDecl* func_decl(Parser* parser) {
 
     consume(parser, TOKEN_RIGHT_PAREN, COMPILE_ERROR_EXPECTED_PARENS_AFTER_PARAMETER);
 
-    block(parser);
+    Ast_Block* body = block(parser);
+    intptr_t offset = ((Ast*)body) - ((Ast*)node);
+    ASSERT(0 <= offset && offset <= 65536);
+    node->next = (u16) offset;
 
     return node;
 }
@@ -642,7 +661,7 @@ Ast_WhileStmt* while_stmt(Parser* parser) {
 }
 
 Ast_ReturnStmt* return_stmt(Parser* parser) {
-    if (parser->scope_depth == 0) {
+    if (parser->depth == 0) {
         Token token = peek_token(parser);
         store_error(parser, token_location(token), COMPILE_ERROR_TRYING_TO_RETURN_FROM_SCRIPT, token);
         return NULL;
@@ -722,45 +741,49 @@ Ast* visit(Ast* ast, Parser* parser, int indent) {
         }
         case AST_IDENTIFIER: {
             Ast_Identifier* n = (Ast_Identifier*) ast;
-            Slice view = *array_Slice_get(&parser->names, n->name);
-            printf("AST_IDENTIFIER: %.*s (%d)\n", view.count, view.source, n->name);
+            Slice view = *dynarray_Slice_get(&parser->variables, n->absolute_offset);
+            printf("AST_IDENTIFIER: %.*s (%d)\n", view.count, view.source, n->absolute_offset);
             return (Ast*)(n+1);
         }
         case AST_LITERAL: {
             Ast_Literal* n = (Ast_Literal*) ast;
             printf("AST_LITERAL: ");
             switch (n->type) {
-                case PRIMITIVE_TYPE_inferred:
-                case PRIMITIVE_TYPE_number:
-                case PRIMITIVE_TYPE_u8:
-                case PRIMITIVE_TYPE_u16:
-                case PRIMITIVE_TYPE_u32:
-                case PRIMITIVE_TYPE_rune:
-                case PRIMITIVE_TYPE_u64:
-                case PRIMITIVE_TYPE_u128: printf("%llu\n", n->value.uint_); break;
-                case PRIMITIVE_TYPE_int:
-                case PRIMITIVE_TYPE_bool:
-                case PRIMITIVE_TYPE_i8:
-                case PRIMITIVE_TYPE_i16:
-                case PRIMITIVE_TYPE_i32:
-                case PRIMITIVE_TYPE_i64:
-                case PRIMITIVE_TYPE_i128: printf("%lld\n", n->value.int_); break;
-                case PRIMITIVE_TYPE_float:
-                case PRIMITIVE_TYPE_f16:
-                case PRIMITIVE_TYPE_f32:
-                case PRIMITIVE_TYPE_f64:
-                case PRIMITIVE_TYPE_f128: printf("%.2f\n", n->value.float_); break;
-                case PRIMITIVE_TYPE_string: {
-                    Slice name = *array_Slice_get(&parser->strings, (int) n->value.string);
-                    printf("%.*s\n", name.count, name.source);
+                case PrimitiveType_inferred:
+                case PrimitiveType_number:
+                case PrimitiveType_u8:
+                case PrimitiveType_u16:
+                case PrimitiveType_u32:
+                case PrimitiveType_rune:
+                case PrimitiveType_u64:
+                case PrimitiveType_u128: printf("%llu\n", n->value.uint_); break;
+                case PrimitiveType_int:
+                case PrimitiveType_bool:
+                case PrimitiveType_i8:
+                case PrimitiveType_i16:
+                case PrimitiveType_i32:
+                case PrimitiveType_i64:
+                case PrimitiveType_i128: printf("%lld\n", n->value.int_); break;
+                case PrimitiveType_float:
+                case PrimitiveType_f16:
+                case PrimitiveType_f32:
+                case PrimitiveType_f64:
+                case PrimitiveType_f128: printf("%.2f\n", n->value.float_); break;
+                case PrimitiveType_string: {
+//                    Slice name = *array_Slice_get(&parser->strings, (int) n->value.string);
+//                    printf("%.*s\n", name.count, name.source);
                     break;
-                } case PRIMITIVE_TYPE_User:
-                    break;
+                }
+                case PrimitiveType_user_defined:
+                case PrimitiveType_char:
+                case PrimitiveType_function:
+                case PrimitiveTypeCount:
+                    PANIC("Not implemented");
             }
             return (Ast*)(n+1);
         } case AST_FUNC_CALL: {
             Ast_FuncCall* n = (Ast_FuncCall*) ast;
-            Slice view = *array_Slice_get(&parser->names, n->name);
+            Slice view = *dynarray_Slice_get(&parser->variables, n->name);
             printf("AST_FUNC_CALL: %.*s (%d)\n", view.count, view.source, n->name);
             Ast* next = (Ast*)(n+1);
             for (int i = 0; i < n->arg_count; ++i) {
@@ -770,26 +793,26 @@ Ast* visit(Ast* ast, Parser* parser, int indent) {
         } case AST_BIN_OP:{
             Ast_BinOp* n = (Ast_BinOp*) ast;
             printf("AST_BIN_OP: %s\n", operation_view(n->op));
-            Ast* next = visit((Ast*)(n+1), parser, indent+1);
+            Ast* next = visit(bin_op_left(n), parser, indent+1);
             next = visit(next, parser, indent+1);
             return next;
         } case AST_VAR_ASSIGN: {
             Ast_VarAssign* n = (Ast_VarAssign*) ast;
-            Slice view = *array_Slice_get(&parser->names, n->name);
+            Slice view = *dynarray_Slice_get(&parser->variables, n->name);
             printf("AST_VAR_ASSIGN: %.*s (%d)\n", view.count, view.source, n->name);
             Ast* next = visit((Ast*)(n+1), parser, indent+1);
             return next;
         }
         case AST_VAR_DECL: {
             Ast_VarDecl* n = (Ast_VarDecl*) ast;
-            Slice view = *array_Slice_get(&parser->names, n->name);
+            Slice view = *dynarray_Slice_get(&parser->variables, n->name);
             printf("AST_VAR_DECL: %.*s (%d)\n", view.count, view.source, n->name);
             Ast* next = visit((Ast*)(n+1), parser, indent+1);
             return next;
         }
         case AST_FUNC_DECL: {
             Ast_FuncDecl* n = (Ast_FuncDecl*) ast;
-            Slice view = *array_Slice_get(&parser->names, n->name);
+            Slice view = *dynarray_Slice_get(&parser->variables, n->name);
             printf("AST_FUNC_DECL: %.*s (%d)\n", view.count, view.source, n->name);
             Ast* next = (Ast*)(n+1);
             for (int i = 0; i < n->param_count; ++i) {
@@ -867,9 +890,11 @@ Ast* visit(Ast* ast, Parser* parser, int indent) {
 
 
 Ast_Module* module(Parser* parser, const char* name) {
+    parser->name_count_for_current_depth = 0;
+
     Token token = peek_token(parser);
 
-    Ast_Module  n = make_module(parser->location, name, 0);
+    Ast_Module  n = make_module(parser->location, name, 0, 0);
     Ast_Module* node = stack_push(&parser->buffer, Ast_Module, n);
 
     u32 stmt_count = 0;
@@ -886,6 +911,7 @@ Ast_Module* module(Parser* parser, const char* name) {
     }
 
     node->stmt_count = stmt_count;
+    node->end = (Ast*)parser->buffer.data - (Ast*) node;
 
     return node;
 }

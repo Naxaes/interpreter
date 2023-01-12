@@ -52,7 +52,7 @@ Location chunk_line(Chunk* chunk, int offset) {
 void chunk_disassemble(Chunk* chunk, const char* name) {
     printf("====== %s ========\n", name);
 
-    for (int offset = 0; offset < chunk->code.count;) {
+    for (int offset = 0; offset < (int) chunk->code.count;) {
         offset = chunk_instruction_disassemble(chunk, offset);
     }
 

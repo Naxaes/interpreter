@@ -21,3 +21,7 @@ bool slice_contains(Slice self, char c);
 Slice previous_line(const char* source, int index);
 Slice current_line(const char* source, int index);
 Slice next_line(const char* source, int index);
+
+
+#define SLICE_FMT "%.*s"
+#define SLICE_ARG(slice) ((int) (slice).count), (slice).source

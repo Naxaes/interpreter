@@ -5,6 +5,7 @@
 #include "object.h"
 
 #include <time.h>
+#include <stdlib.h>
 
 
 #define STRING_TO_SLICE(x) ((Slice) { .source=x->data, .count=x->size })

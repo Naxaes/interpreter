@@ -7,7 +7,8 @@ typedef struct {
     int count;
 } Slice;
 
-#define SLICE(x) (Slice) { .source=(x), .count=sizeof(x) - 1 }
+#define SLICE(x)  (Slice) { .source=(x), .count=sizeof(x) - 1 }
+#define SLICE_EMPTY (Slice) { .source=0, .count=0  }
 
 Slice slice_make(const char* source, int count);
 Slice slice_str_offset(const char* source, int start, int stop);

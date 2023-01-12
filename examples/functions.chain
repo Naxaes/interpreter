@@ -10,12 +10,30 @@ fun sum_and_return(a, b, c) {
   return a + b + test(c);
 }
 
-var start = clock();
+fun testing(greeting) {
+    print(greeting);
+    print("World!");
+}
 
-print 4;
-print sum(5, 6, 7);              // null (prints 18)
-print sum_and_return(1, 2, 3);   // 6
 
-var stop = clock();
+fun main() {
+    var start = clock();
+    var x = 0;
+    var hello = "Hello";
 
-print(start - stop);
+    print(4);
+    print(sum(5, 6, 7));                // null (prints 18)
+    print(sum_and_return(1, 2, x-3));   // 6
+
+    print(x);
+    var stop = clock();
+
+    print("Time:");
+    print(start - stop);
+
+    print(start);
+    print(start);
+    print(hello);
+}
+
+main();
